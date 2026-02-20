@@ -40,10 +40,11 @@ pub fn revert_commit(repo_path: String, commit_sha: String) -> Result<RevertResu
                     }
                 }
 
+                let num_conflicts = conflicts.len();
                 Ok(RevertResult {
                     success: false,
                     conflicts,
-                    message: format!("리버트 중 충돌이 발생했습니다: {} 개 파일", conflicts.len()),
+                    message: format!("리버트 중 충돌이 발생했습니다: {} 개 파일", num_conflicts),
                 })
             } else {
                 // Auto-commit if no conflicts

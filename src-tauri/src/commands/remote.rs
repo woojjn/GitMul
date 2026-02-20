@@ -175,6 +175,7 @@ pub async fn pull_changes(
         .map_err(|e| format!("Remote branch '{}' not found: {}", remote_branch_name, e))?;
     
     let remote_commit = remote_branch.get().peel_to_commit().map_err(|e| e.to_string())?;
+    let annotated_commit = repo.find_annotated_commit(remote_commit.id()).map_err(|e| e.to_string())?;
     
     // Get current branch
     let head = repo.head().map_err(|e| e.to_string())?;
@@ -182,7 +183,7 @@ pub async fn pull_changes(
     
     // Check if fast-forward
     let (merge_analysis, _) = repo
-        .merge_analysis(&[&remote_commit])
+        .merge_analysis(&[&annotated_commit])
         .map_err(|e| e.to_string())?;
 
     if merge_analysis.is_up_to_date() {

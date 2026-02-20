@@ -40,10 +40,11 @@ pub fn cherry_pick(repo_path: String, commit_sha: String) -> Result<CherryPickRe
                     }
                 }
 
+                let num_conflicts = conflicts.len();
                 Ok(CherryPickResult {
                     success: false,
                     conflicts,
-                    message: format!("체리픽 중 충돌이 발생했습니다: {} 개 파일", conflicts.len()),
+                    message: format!("체리픽 중 충돌이 발생했습니다: {} 개 파일", num_conflicts),
                 })
             } else {
                 // Auto-commit if no conflicts

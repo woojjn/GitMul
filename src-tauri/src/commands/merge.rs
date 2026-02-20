@@ -18,8 +18,12 @@ pub fn merge_branch(
     let source_commit = source.get().peel_to_commit()
         .map_err(|e| format!("Failed to get source commit: {}", e))?;
 
+    // Create annotated commit for merge analysis
+    let annotated_commit = repo.find_annotated_commit(source_commit.id())
+        .map_err(|e| format!("Failed to create annotated commit: {}", e))?;
+
     // Perform merge analysis
-    let (analysis, _preference) = repo.merge_analysis(&[&source_commit.as_object().into()])
+    let (analysis, _preference) = repo.merge_analysis(&[&annotated_commit])
         .map_err(|e| format!("Failed to analyze merge: {}", e))?;
 
     if analysis.is_fast_forward() && !no_fast_forward {
@@ -40,13 +44,13 @@ pub fn merge_branch(
         let mut checkout_options = git2::build::CheckoutBuilder::new();
 
         repo.merge(
-            &[&source_commit.as_object().into()],
+            &[&annotated_commit],
             Some(&mut merge_options),
             Some(&mut checkout_options),
         ).map_err(|e| format!("Failed to merge: {}", e))?;
 
         // Check if there are conflicts
-        let index = repo.index()
+        let mut index = repo.index()
             .map_err(|e| format!("Failed to get index: {}", e))?;
 
         if index.has_conflicts() {

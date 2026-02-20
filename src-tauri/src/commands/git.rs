@@ -36,7 +36,7 @@ fn normalize_path(path: &str) -> String {
 
 /// Git 설정 자동 체크 (한글 지원)
 fn ensure_utf8_config(repo: &Repository) -> Result<(), String> {
-    let config = repo.config().map_err(|e| e.to_string())?;
+    let mut config = repo.config().map_err(|e| e.to_string())?;
     
     // core.quotepath = false (한글 파일명 표시)
     if config.get_bool("core.quotepath").unwrap_or(true) {
@@ -188,9 +188,24 @@ pub async fn unstage_file(repo_path: String, file_path: String) -> Result<(), St
     // HEAD의 상태로 되돌림
     let path = Path::new(&file_path);
     if let Ok(entry) = head_tree.get_path(path) {
-        let obj = repo.find_object(entry.id(), None)
+        let blob = repo.find_blob(entry.id())
             .map_err(|e| e.to_string())?;
-        index.add_frombuffer(&entry, obj.as_blob().unwrap().content())
+        // Reset index entry to HEAD state
+        let index_entry = git2::IndexEntry {
+            ctime: git2::IndexTime::new(0, 0),
+            mtime: git2::IndexTime::new(0, 0),
+            dev: 0,
+            ino: 0,
+            mode: entry.filemode() as u32,
+            uid: 0,
+            gid: 0,
+            file_size: blob.content().len() as u32,
+            id: entry.id(),
+            flags: 0,
+            flags_extended: 0,
+            path: file_path.as_bytes().to_vec(),
+        };
+        index.add_frombuffer(&index_entry, blob.content())
             .map_err(|e| e.to_string())?;
     } else {
         // 새 파일인 경우 인덱스에서 제거

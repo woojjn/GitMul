@@ -56,7 +56,7 @@ pub async fn get_file_diff(
         // Staged changes: diff between HEAD and index
         let head = repo.head().map_err(|e| e.to_string())?;
         let head_tree = head.peel_to_tree().map_err(|e| e.to_string())?;
-        let index = repo.index().map_err(|e| e.to_string())?;
+        let mut index = repo.index().map_err(|e| e.to_string())?;
         let index_tree = repo.find_tree(index.write_tree().map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
         
@@ -278,7 +278,7 @@ pub async fn get_diff_stats(
     let diff = if staged {
         let head = repo.head().map_err(|e| e.to_string())?;
         let head_tree = head.peel_to_tree().map_err(|e| e.to_string())?;
-        let index = repo.index().map_err(|e| e.to_string())?;
+        let mut index = repo.index().map_err(|e| e.to_string())?;
         let index_tree = repo
             .find_tree(index.write_tree().map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;

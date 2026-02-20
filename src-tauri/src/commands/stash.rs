@@ -16,7 +16,7 @@ pub fn stash_save(
     message: Option<String>,
     include_untracked: bool,
 ) -> Result<String, String> {
-    let repo = Repository::open(Path::new(&repo_path))
+    let mut repo = Repository::open(Path::new(&repo_path))
         .map_err(|e| format!("Failed to open repository: {}", e))?;
 
     let sig = repo.signature()
@@ -38,7 +38,7 @@ pub fn stash_save(
 /// List all stashes
 #[tauri::command]
 pub fn stash_list(repo_path: String) -> Result<Vec<StashInfo>, String> {
-    let repo = Repository::open(Path::new(&repo_path))
+    let mut repo = Repository::open(Path::new(&repo_path))
         .map_err(|e| format!("Failed to open repository: {}", e))?;
 
     let mut stashes = Vec::new();
@@ -61,7 +61,7 @@ pub fn stash_apply(
     repo_path: String,
     index: usize,
 ) -> Result<String, String> {
-    let repo = Repository::open(Path::new(&repo_path))
+    let mut repo = Repository::open(Path::new(&repo_path))
         .map_err(|e| format!("Failed to open repository: {}", e))?;
 
     repo.stash_apply(index, None)
@@ -76,7 +76,7 @@ pub fn stash_pop(
     repo_path: String,
     index: usize,
 ) -> Result<String, String> {
-    let repo = Repository::open(Path::new(&repo_path))
+    let mut repo = Repository::open(Path::new(&repo_path))
         .map_err(|e| format!("Failed to open repository: {}", e))?;
 
     repo.stash_pop(index, None)
@@ -91,7 +91,7 @@ pub fn stash_drop(
     repo_path: String,
     index: usize,
 ) -> Result<String, String> {
-    let repo = Repository::open(Path::new(&repo_path))
+    let mut repo = Repository::open(Path::new(&repo_path))
         .map_err(|e| format!("Failed to open repository: {}", e))?;
 
     repo.stash_drop(index)

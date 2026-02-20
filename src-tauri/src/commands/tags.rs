@@ -26,11 +26,11 @@ pub fn list_tags(repo_path: String) -> Result<Vec<TagInfo>, String> {
                 let target = obj.id().to_string();
                 
                 // Try to get annotated tag info
-                let (message, tagger, date) = if let Ok(tag) = obj.as_tag() {
+                let (message, tagger, date) = if let Some(tag) = obj.as_tag() {
                     (
-                        tag.message().map(|s| s.to_string()),
-                        tag.tagger().map(|t| format!("{} <{}>", t.name().unwrap_or(""), t.email().unwrap_or(""))),
-                        tag.tagger().map(|t| t.when().seconds()),
+                        tag.message().map(|s: &str| s.to_string()),
+                        tag.tagger().map(|t: git2::Signature| format!("{} <{}>", t.name().unwrap_or(""), t.email().unwrap_or(""))),
+                        tag.tagger().map(|t: git2::Signature| t.when().seconds()),
                     )
                 } else {
                     (None, None, None)
