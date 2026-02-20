@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Existing release tag to attach Windows installer (e.g. v1.7.0)'
+        description: 'Existing release tag to attach Windows installer (e.g. v0.1.0-beta)'
         required: true
-        default: 'v1.7.0'
+        default: 'v0.1.0-beta'
 
 permissions:
   contents: write
