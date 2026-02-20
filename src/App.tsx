@@ -340,7 +340,16 @@ function App() {
                       <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700">
                         <CommitHistory
                           commits={dataState.commits}
+                          repoPath={dataState.currentRepo.path}
                           onRefresh={refreshRepository}
+                          selectedCommitSha={uiState?.selectedCommitSha}
+                          onSelectCommit={(sha) => {
+                            updateTabUIState(activeTabId!, { selectedCommitSha: sha });
+                          }}
+                          onViewCommitFileDiff={(_commitSha, filePath) => {
+                            // Open diff viewer for the file (working tree diff for now)
+                            updateTabUIState(activeTabId!, { selectedFile: { path: filePath, staged: false } });
+                          }}
                           onCherryPick={(sha, message) => {
                             updateTabUIState(activeTabId!, {
                               showCherryPickDialog: true,
