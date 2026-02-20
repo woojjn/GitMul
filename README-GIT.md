@@ -8,7 +8,9 @@
 
 **GitMul** - Modern Git GUI Tool built with Tauri, React, and TypeScript
 
-> **이름의 의미**: GitMul = Git + Multiple (다중 탭, 다중 레포지토리 지원을 강조)
+> **이름의 의미**: GitMul = Git + 물(Mul)
+> - 한국어 "물"을 영어로 표현한 이름
+> - Multiple의 의미도 포함: 다중 탭, 다중 레포지토리 지원
 
 ---
 
