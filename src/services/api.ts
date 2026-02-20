@@ -5,9 +5,67 @@
  *   1. Command names are defined in one place (no typos).
  *   2. Return types are declared alongside the call.
  *   3. Components stay free of direct Tauri imports.
+ *
+ * When running outside Tauri (e.g. in a web browser), the module
+ * automatically falls back to mock data so the entire UI can be
+ * previewed and tested without the Rust backend.
  */
-import { invoke } from '@tauri-apps/api/tauri';
-import { open, save } from '@tauri-apps/api/dialog';
+
+import { isTauri, mockInvoke, mockOpenDialog, mockSaveDialog } from '../mocks/ipc';
+
+// Lazy-load real Tauri APIs only when the runtime is present.
+// This avoids import errors in plain browsers.
+let _invoke: typeof import('@tauri-apps/api/tauri').invoke;
+let _open: typeof import('@tauri-apps/api/dialog').open;
+let _save: typeof import('@tauri-apps/api/dialog').save;
+
+const ensureTauri = async () => {
+  if (!_invoke) {
+    const tauri = await import('@tauri-apps/api/tauri');
+    _invoke = tauri.invoke;
+  }
+  if (!_open) {
+    const dialog = await import('@tauri-apps/api/dialog');
+    _open = dialog.open;
+    _save = dialog.save;
+  }
+};
+
+/**
+ * Universal invoke: delegates to Tauri IPC when available, otherwise mock.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function invoke<T>(cmd: string, args?: Record<string, any>): Promise<T> {
+  if (isTauri()) {
+    await ensureTauri();
+    return _invoke<T>(cmd, args);
+  }
+  return mockInvoke<T>(cmd, args);
+}
+
+/**
+ * Universal open dialog.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function openDialog(options?: any) {
+  if (isTauri()) {
+    await ensureTauri();
+    return _open(options);
+  }
+  return mockOpenDialog(options);
+}
+
+/**
+ * Universal save dialog.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function saveDialog(options?: any) {
+  if (isTauri()) {
+    await ensureTauri();
+    return _save(options);
+  }
+  return mockSaveDialog(options);
+}
 
 import type {
   RepositoryInfo,
@@ -313,10 +371,10 @@ export const cloneFromBundle = (bundlePath: string, targetPath: string) =>
 // ============================================================================
 
 export const openDirectoryDialog = (title = '레포지토리 선택') =>
-  open({ directory: true, multiple: false, title });
+  openDialog({ directory: true, multiple: false, title });
 
 export const openFileDialog = (title = '파일 선택', filters?: { name: string; extensions: string[] }[]) =>
-  open({ directory: false, multiple: false, title, filters });
+  openDialog({ directory: false, multiple: false, title, filters });
 
 export const saveFileDialog = (title = '파일 저장', defaultPath?: string, filters?: { name: string; extensions: string[] }[]) =>
-  save({ title, defaultPath, filters });
+  saveDialog({ title, defaultPath, filters });
