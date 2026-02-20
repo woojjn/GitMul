@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 
 # Build outputs
 dist/
@@ -25,7 +24,7 @@ Thumbs.db
 
 # Tauri
 src-tauri/target/
-src-tauri/Cargo.lock
+# src-tauri/Cargo.lock
 
 # Logs
 *.log
