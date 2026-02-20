@@ -29,9 +29,11 @@ interface RemoteManagerProps {
   repoPath: string;
   currentBranch: string;
   onClose?: () => void;
+  onSuccess?: (message: string) => void;
+  onError?: (message: string) => void;
 }
 
-export default function RemoteManager({ repoPath, currentBranch, onClose }: RemoteManagerProps) {
+export default function RemoteManager({ repoPath, currentBranch, onClose, onSuccess, onError: onErrorProp }: RemoteManagerProps) {
   const [remotes, setRemotes] = useState<RemoteInfo[]>([]);
   const [selectedRemote, setSelectedRemote] = useState<string>('');
   const [remoteBranches, setRemoteBranches] = useState<RemoteBranchInfo[]>([]);
@@ -181,9 +183,11 @@ export default function RemoteManager({ repoPath, currentBranch, onClose }: Remo
       });
       
       setProgress({ phase: 'idle', current: 0, total: 0, bytes: 0, message: result });
-      alert(result);
+      onSuccess?.(result);
     } catch (err: any) {
-      setError(err.toString());
+      const msg = err.toString();
+      setError(msg);
+      onErrorProp?.(msg);
       setProgress(null);
     } finally {
       setLoading(false);
@@ -210,7 +214,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose }: Remo
       });
       
       setProgress({ phase: 'idle', current: 0, total: 0, bytes: 0, message: result });
-      alert(result);
+      onSuccess?.(result);
     } catch (err: any) {
       setError(err.toString());
       setProgress(null);

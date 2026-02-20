@@ -1,6 +1,6 @@
 use git2::{
-    Repository, Remote, RemoteCallbacks, FetchOptions, PushOptions,
-    Direction, Cred, CredentialType, BranchType, AutotagOption
+    Repository, RemoteCallbacks, FetchOptions, PushOptions,
+    Direction, BranchType, AutotagOption
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -32,7 +32,7 @@ pub struct SyncProgress {
     pub message: String,
 }
 
-/// Global progress state
+// Global progress state
 lazy_static::lazy_static! {
     static ref SYNC_PROGRESS: Arc<Mutex<SyncProgress>> = Arc::new(Mutex::new(SyncProgress {
         phase: "idle".to_string(),
@@ -179,7 +179,7 @@ pub async fn pull_changes(
     
     // Get current branch
     let head = repo.head().map_err(|e| e.to_string())?;
-    let local_commit = head.peel_to_commit().map_err(|e| e.to_string())?;
+    let _local_commit = head.peel_to_commit().map_err(|e| e.to_string())?;
     
     // Check if fast-forward
     let (merge_analysis, _) = repo
@@ -321,7 +321,7 @@ pub async fn get_remote_branches(
 
 /// Get sync progress
 #[tauri::command]
-pub async fn get_sync_progress(repo_path: String) -> Result<SyncProgress, String> {
+pub async fn get_sync_progress(_repo_path: String) -> Result<SyncProgress, String> {
     let progress = SYNC_PROGRESS.lock().unwrap().clone();
     Ok(progress)
 }

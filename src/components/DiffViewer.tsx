@@ -293,9 +293,7 @@ function TextDiffViewer({
                         <span className="inline-block w-4">
                           {line.line_type === 'deletion' ? '-' : ' '}
                         </span>
-                        <span className="whitespace-pre text-gray-800 dark:text-gray-300">
-                          {line.content}
-                        </span>
+                        {renderWordDiff(line.content, line.line_type)}
                       </span>
                     </div>
                   );
@@ -328,9 +326,7 @@ function TextDiffViewer({
                         <span className="inline-block w-4">
                           {line.line_type === 'addition' ? '+' : ' '}
                         </span>
-                        <span className="whitespace-pre text-gray-800 dark:text-gray-300">
-                          {line.content}
-                        </span>
+                        {renderWordDiff(line.content, line.line_type)}
                       </span>
                     </div>
                   );

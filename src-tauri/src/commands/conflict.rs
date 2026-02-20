@@ -1,4 +1,4 @@
-use git2::{Repository, Index, IndexEntry, Oid};
+use git2::{Repository, Oid};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -103,7 +103,7 @@ pub fn resolve_conflict(
     match resolution.as_str() {
         "ours" => {
             // Keep our version
-            let mut index = repo.index()
+            let index = repo.index()
                 .map_err(|e| format!("인덱스 접근 실패: {}", e))?;
             
             let conflict = index.conflicts()
@@ -128,7 +128,7 @@ pub fn resolve_conflict(
         },
         "theirs" => {
             // Keep their version
-            let mut index = repo.index()
+            let index = repo.index()
                 .map_err(|e| format!("인덱스 접근 실패: {}", e))?;
             
             let conflict = index.conflicts()

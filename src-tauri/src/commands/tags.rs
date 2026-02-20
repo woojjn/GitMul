@@ -1,4 +1,4 @@
-use git2::{Repository, Oid};
+use git2::Repository;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

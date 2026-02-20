@@ -61,6 +61,8 @@ export default function Toolbar({
               showRemoteManager: false,
               showCommitGraph: false,
               showStashManager: false,
+              showTagManager: false,
+              showReflogViewer: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showBranchManager
@@ -88,6 +90,8 @@ export default function Toolbar({
               showBranchManager: false,
               showRemoteManager: false,
               showCommitGraph: false,
+              showTagManager: false,
+              showReflogViewer: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showStashManager
@@ -103,6 +107,11 @@ export default function Toolbar({
           <button
             onClick={() => onUpdateUIState(activeTabId, {
               showTagManager: !uiState?.showTagManager,
+              showBranchManager: false,
+              showRemoteManager: false,
+              showCommitGraph: false,
+              showStashManager: false,
+              showReflogViewer: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showTagManager
@@ -118,6 +127,11 @@ export default function Toolbar({
           <button
             onClick={() => onUpdateUIState(activeTabId, {
               showReflogViewer: !uiState?.showReflogViewer,
+              showBranchManager: false,
+              showRemoteManager: false,
+              showCommitGraph: false,
+              showStashManager: false,
+              showTagManager: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showReflogViewer
@@ -136,6 +150,8 @@ export default function Toolbar({
               showBranchManager: false,
               showCommitGraph: false,
               showStashManager: false,
+              showTagManager: false,
+              showReflogViewer: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showRemoteManager
@@ -154,6 +170,8 @@ export default function Toolbar({
               showBranchManager: false,
               showRemoteManager: false,
               showStashManager: false,
+              showTagManager: false,
+              showReflogViewer: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showCommitGraph

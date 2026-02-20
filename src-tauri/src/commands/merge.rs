@@ -1,4 +1,4 @@
-use git2::{Repository, BranchType, MergeAnalysis, MergePreference};
+use git2::{Repository, BranchType};
 use std::path::Path;
 
 /// Merge a branch into the current branch

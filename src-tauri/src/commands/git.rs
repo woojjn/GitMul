@@ -1,7 +1,7 @@
-use git2::{Repository, Oid, Time, DiffOptions};
+use git2::Repository;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use chrono::{DateTime, Utc, TimeZone};
+use chrono::{Utc, TimeZone};
 use unicode_normalization::UnicodeNormalization;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -151,7 +151,7 @@ pub async fn get_repository_status(repo_path: String) -> Result<Vec<FileStatus>,
         // If file has staged changes, add a staged entry
         if is_index_changed {
             let staged_status = if status.is_index_new() {
-                "untracked"
+                "added"
             } else if status.is_index_modified() {
                 "modified"
             } else if status.is_index_deleted() {
@@ -199,9 +199,17 @@ pub async fn stage_file(repo_path: String, path: String) -> Result<(), String> {
     
     let mut index = repo.index().map_err(|e| e.to_string())?;
     
-    // 파일을 인덱스에 추가
-    index.add_path(Path::new(&file_path))
-        .map_err(|e| format!("파일 스테이징 실패: {}", e))?;
+    let full_path = std::path::Path::new(&repo_path).join(&file_path);
+    
+    if full_path.exists() {
+        // 파일이 존재하면 인덱스에 추가
+        index.add_path(Path::new(&file_path))
+            .map_err(|e| format!("파일 스테이징 실패: {}", e))?;
+    } else {
+        // 삭제된 파일은 인덱스에서 제거하여 삭제를 스테이징
+        index.remove_path(Path::new(&file_path))
+            .map_err(|e| format!("삭제된 파일 스테이징 실패: {}", e))?;
+    }
     
     index.write().map_err(|e| e.to_string())?;
     
@@ -215,37 +223,45 @@ pub async fn unstage_file(repo_path: String, path: String) -> Result<(), String>
     let repo = Repository::open(&repo_path)
         .map_err(|e| format!("레포지토리를 열 수 없습니다: {}", e))?;
     
-    let head = repo.head().map_err(|e| e.to_string())?;
-    let head_commit = head.peel_to_commit().map_err(|e| e.to_string())?;
-    let head_tree = head_commit.tree().map_err(|e| e.to_string())?;
-    
     let mut index = repo.index().map_err(|e| e.to_string())?;
-    
-    // HEAD의 상태로 되돌림
     let path = Path::new(&file_path);
-    if let Ok(entry) = head_tree.get_path(path) {
-        let blob = repo.find_blob(entry.id())
-            .map_err(|e| e.to_string())?;
-        // Reset index entry to HEAD state
-        let index_entry = git2::IndexEntry {
-            ctime: git2::IndexTime::new(0, 0),
-            mtime: git2::IndexTime::new(0, 0),
-            dev: 0,
-            ino: 0,
-            mode: entry.filemode() as u32,
-            uid: 0,
-            gid: 0,
-            file_size: blob.content().len() as u32,
-            id: entry.id(),
-            flags: 0,
-            flags_extended: 0,
-            path: file_path.as_bytes().to_vec(),
-        };
-        index.add_frombuffer(&index_entry, blob.content())
-            .map_err(|e| e.to_string())?;
-    } else {
-        // 새 파일인 경우 인덱스에서 제거
-        index.remove_path(path).map_err(|e| e.to_string())?;
+    
+    // HEAD가 있는지 확인 (첫 커밋 이전에는 HEAD가 없을 수 있음)
+    match repo.head() {
+        Ok(head) => {
+            let head_commit = head.peel_to_commit().map_err(|e| e.to_string())?;
+            let head_tree = head_commit.tree().map_err(|e| e.to_string())?;
+            
+            // HEAD의 상태로 되돌림
+            if let Ok(entry) = head_tree.get_path(path) {
+                let blob = repo.find_blob(entry.id())
+                    .map_err(|e| e.to_string())?;
+                // Reset index entry to HEAD state
+                let index_entry = git2::IndexEntry {
+                    ctime: git2::IndexTime::new(0, 0),
+                    mtime: git2::IndexTime::new(0, 0),
+                    dev: 0,
+                    ino: 0,
+                    mode: entry.filemode() as u32,
+                    uid: 0,
+                    gid: 0,
+                    file_size: blob.content().len() as u32,
+                    id: entry.id(),
+                    flags: 0,
+                    flags_extended: 0,
+                    path: file_path.as_bytes().to_vec(),
+                };
+                index.add_frombuffer(&index_entry, blob.content())
+                    .map_err(|e| e.to_string())?;
+            } else {
+                // 새 파일인 경우 인덱스에서 제거
+                index.remove_path(path).map_err(|e| e.to_string())?;
+            }
+        },
+        Err(_) => {
+            // HEAD가 없음 (첫 커밋 이전) - 인덱스에서 제거
+            index.remove_path(path).map_err(|e| e.to_string())?;
+        }
     }
     
     index.write().map_err(|e| e.to_string())?;

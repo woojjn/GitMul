@@ -48,19 +48,63 @@ export default function CommitGraph({ repoPath, commits }: CommitGraphProps) {
   }, [nodes, selectedCommit]);
 
   const calculateGraph = () => {
-    // Simple graph layout: each commit gets a column based on parent
-    const columnMap = new Map<string, number>();
+    // Proper git graph layout algorithm
+    // Tracks active columns (lanes) and assigns commits to lanes properly
     const newNodes: GraphNode[] = [];
-    let nextColumn = 0;
+    
+    // Active lanes: each lane holds the SHA of the commit it's waiting to connect to
+    let activeLanes: (string | null)[] = [];
+    
+    // Map from SHA to assigned column for quick lookup
+    const shaToColumn = new Map<string, number>();
 
     commits.forEach((commit, index) => {
       const commitId = commit.sha;
-      let column = columnMap.get(commitId);
       
-      if (column === undefined) {
-        // New branch or first commit
-        column = nextColumn++;
-        columnMap.set(commitId, column);
+      // Find the lane this commit occupies (if any parent reserved it)
+      let column = activeLanes.indexOf(commitId);
+      
+      if (column === -1) {
+        // This commit wasn't expected in any lane — find first free lane or add new one
+        const freeLane = activeLanes.indexOf(null);
+        if (freeLane !== -1) {
+          column = freeLane;
+        } else {
+          column = activeLanes.length;
+          activeLanes.push(null);
+        }
+      }
+      
+      // Clear this lane (commit has arrived)
+      activeLanes[column] = null;
+      
+      // Assign parents to lanes
+      commit.parent_ids.forEach((parentId, parentIdx) => {
+        // Check if this parent is already expected in some lane
+        const existingLane = activeLanes.indexOf(parentId);
+        
+        if (existingLane !== -1) {
+          // Parent already has a lane reserved — keep it
+          return;
+        }
+        
+        if (parentIdx === 0) {
+          // First parent: continue in the same column
+          activeLanes[column] = parentId;
+        } else {
+          // Additional parents (merge): find a free lane or add new one
+          const freeLane = activeLanes.indexOf(null);
+          if (freeLane !== -1) {
+            activeLanes[freeLane] = parentId;
+          } else {
+            activeLanes.push(parentId);
+          }
+        }
+      });
+      
+      // Trim trailing null lanes to keep graph compact
+      while (activeLanes.length > 0 && activeLanes[activeLanes.length - 1] === null) {
+        activeLanes.pop();
       }
 
       const color = COLORS[column % COLORS.length];
@@ -73,13 +117,7 @@ export default function CommitGraph({ repoPath, commits }: CommitGraphProps) {
       };
 
       newNodes.push(node);
-
-      // Assign columns to parents
-      commit.parent_ids.forEach((parentId) => {
-        if (!columnMap.has(parentId)) {
-          columnMap.set(parentId, column);
-        }
-      });
+      shaToColumn.set(commitId, column);
     });
 
     setNodes(newNodes);
@@ -95,16 +133,33 @@ export default function CommitGraph({ repoPath, commits }: CommitGraphProps) {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Build SHA -> node index map for O(1) parent lookup
+    const nodeMap = new Map<string, GraphNode>();
+    nodes.forEach((node) => nodeMap.set(node.commit.sha, node));
+
     // Draw lines between commits
-    nodes.forEach((node, index) => {
+    nodes.forEach((node) => {
       node.commit.parent_ids.forEach((parentId) => {
-        const parentNode = nodes.find((n) => n.commit.sha === parentId);
+        const parentNode = nodeMap.get(parentId);
         if (parentNode) {
           ctx.beginPath();
-          ctx.moveTo(node.x, node.y);
-          ctx.lineTo(parentNode.x, parentNode.y);
           ctx.strokeStyle = node.color;
           ctx.lineWidth = 2;
+
+          if (node.x === parentNode.x) {
+            // Same column: straight line
+            ctx.moveTo(node.x, node.y);
+            ctx.lineTo(parentNode.x, parentNode.y);
+          } else {
+            // Different column: curved bezier line for merge/fork visualization
+            const midY = (node.y + parentNode.y) / 2;
+            ctx.moveTo(node.x, node.y);
+            ctx.bezierCurveTo(
+              node.x, midY,
+              parentNode.x, midY,
+              parentNode.x, parentNode.y
+            );
+          }
           ctx.stroke();
         }
       });

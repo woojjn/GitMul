@@ -11,6 +11,12 @@ interface BranchInfo {
   timestamp: number;
 }
 
+interface FileStatus {
+  path: string;
+  status: string;
+  staged: boolean;
+}
+
 interface BranchManagerProps {
   repoPath: string;
 }
@@ -73,6 +79,15 @@ export default function BranchManager({ repoPath }: BranchManagerProps) {
     if (branchName === currentBranch) return;
 
     try {
+      // Check for uncommitted changes before switching
+      const fileStatuses = await invoke<FileStatus[]>('get_repository_status', { repoPath });
+      if (fileStatuses.length > 0) {
+        const hasChanges = fileStatuses.some(f => f.staged || !f.staged);
+        if (hasChanges && !confirm(`커밋되지 않은 변경사항이 ${fileStatuses.length}개 있습니다.\n브랜치를 전환하면 변경사항이 손실될 수 있습니다.\n계속하시겠습니까?`)) {
+          return;
+        }
+      }
+
       setLoading(true);
       setError('');
       await invoke('switch_branch', { repoPath, branchName });

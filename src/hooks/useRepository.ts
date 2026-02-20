@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
 import type { RecentRepo, RepositoryInfo, CommitInfo, FileStatus, BranchInfo } from '../types/git';
@@ -147,6 +147,42 @@ export function useRepository({ tabManager, onSuccess, onError }: UseRepositoryP
     if (!activeTabId || !activeTab?.dataState.currentRepo) return;
     await loadRepositoryData(activeTabId, activeTab.dataState.currentRepo.path);
   };
+
+  /**
+   * Auto-load repository data for restored tabs (from localStorage)
+   * Runs once after initial mount when tabs are available
+   */
+  const initialLoadRef = useRef(false);
+
+  useEffect(() => {
+    if (initialLoadRef.current || tabs.length === 0) return;
+    
+    // Find tabs that have a repoPath but no loaded data
+    const tabsToLoad = tabs.filter(
+      (t: any) => t.repoPath && !t.dataState.currentRepo
+    );
+    
+    if (tabsToLoad.length === 0) {
+      initialLoadRef.current = true;
+      return;
+    }
+    
+    initialLoadRef.current = true;
+    
+    const loadAll = async () => {
+      for (const tab of tabsToLoad) {
+        try {
+          const repoInfo = await invoke<RepositoryInfo>('open_repository', { path: tab.repoPath });
+          updateTabDataState(tab.id, { currentRepo: repoInfo });
+          await loadRepositoryData(tab.id, tab.repoPath);
+        } catch (error) {
+          console.warn(`Failed to restore tab "${tab.title}":`, error);
+        }
+      }
+    };
+    
+    loadAll();
+  }, [tabs]);
 
   return {
     recentRepos,

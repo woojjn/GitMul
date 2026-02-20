@@ -1,6 +1,5 @@
-use git2::{Branch, BranchType, Repository};
+use git2::{BranchType, Repository};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use unicode_normalization::UnicodeNormalization;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

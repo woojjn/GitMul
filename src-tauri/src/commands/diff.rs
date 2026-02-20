@@ -1,4 +1,4 @@
-use git2::{Diff, DiffOptions, Repository, Oid};
+use git2::{DiffOptions, Repository, Oid};
 use serde::{Deserialize, Serialize};
 use unicode_normalization::UnicodeNormalization;
 use std::path::Path;
@@ -292,11 +292,12 @@ pub async fn get_diff_stats(
 
     let mut stats = Vec::new();
 
+    // Step 1: Collect file paths and binary flags
     diff.foreach(
         &mut |delta, _progress| {
             let path = delta.new_file().path().unwrap_or(std::path::Path::new(""));
             let path_str = normalize_unicode(path.to_str().unwrap_or(""));
-            
+
             stats.push(DiffStat {
                 file_path: path_str,
                 additions: 0,
@@ -311,15 +312,30 @@ pub async fn get_diff_stats(
     )
     .map_err(|e| e.to_string())?;
 
-    // Get detailed stats
-    let diff_stats = diff.stats().map_err(|e| e.to_string())?;
-    for (i, delta) in diff.deltas().enumerate() {
-        if i < stats.len() {
-            // Note: libgit2 doesn't provide per-file stats directly
-            // We'll need to calculate them by parsing the diff
-            stats[i].additions = 0;  // Placeholder
-            stats[i].deletions = 0;  // Placeholder
-        }
+    // Step 2: Count per-file additions and deletions via patch parsing
+    if !stats.is_empty() {
+        use std::cell::Cell;
+        let current_file_idx: Cell<i32> = Cell::new(-1);
+        diff.foreach(
+            &mut |_delta, _progress| {
+                current_file_idx.set(current_file_idx.get() + 1);
+                true
+            },
+            None,
+            None,
+            Some(&mut |_delta, _hunk, line| {
+                let idx = current_file_idx.get() as usize;
+                if idx < stats.len() {
+                    match line.origin() {
+                        '+' => stats[idx].additions += 1,
+                        '-' => stats[idx].deletions += 1,
+                        _ => {}
+                    }
+                }
+                true
+            }),
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     Ok(stats)
@@ -613,7 +629,7 @@ pub async fn get_image_diff(
 }
 
 /// Get old version of image from HEAD tree
-fn get_old_image_data(repo: &Repository, file_path: &str, staged: bool) -> Option<ImageData> {
+fn get_old_image_data(repo: &Repository, file_path: &str, _staged: bool) -> Option<ImageData> {
     // For both staged and unstaged, the "old" version is from HEAD
     let head = repo.head().ok()?;
     let tree = head.peel_to_tree().ok()?;
