@@ -87,6 +87,16 @@ export interface DiffStat {
   is_binary: boolean;
 }
 
+/** A changed file in a commit with status and diff stats. */
+export interface CommitFileChange {
+  path: string;
+  status: string; // "added" | "modified" | "deleted" | "renamed" | "copied"
+  additions: number;
+  deletions: number;
+  is_binary: boolean;
+  old_path: string | null;
+}
+
 // ============================================================================
 // Image Diff
 // ============================================================================
@@ -242,4 +252,30 @@ export interface ReflogEntry {
   message: string;
   committer: string;
   timestamp: number;
+}
+
+// ============================================================================
+// Bundle
+// ============================================================================
+
+/** Ref info for bundle creation. */
+export interface BundleRefInfo {
+  name: string;
+  commit_sha: string;
+  ref_type: string; // "branch" | "tag"
+}
+
+/** Bundle creation result. */
+export interface BundleCreateResult {
+  success: boolean;
+  output_path: string;
+  message: string;
+  file_size: number;
+}
+
+/** Bundle verification result. */
+export interface BundleVerifyResult {
+  valid: boolean;
+  message: string;
+  refs: string[];
 }

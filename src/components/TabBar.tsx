@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Plus, FolderGit2, MoreVertical } from 'lucide-react';
+import { X, Plus, FolderGit2 } from 'lucide-react';
 import type { Tab } from '../types/tab';
 
 interface TabBarProps {

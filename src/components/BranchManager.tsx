@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as api from '../services/api';
-import type { BranchInfo, FileStatus } from '../types/git';
+import type { BranchInfo } from '../types/git';
 
 interface BranchManagerProps {
   repoPath: string;

@@ -18,3 +18,4 @@ pub mod tags;
 pub mod history;
 pub mod rebase;
 pub mod reflog;
+pub mod bundle;

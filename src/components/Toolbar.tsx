@@ -1,6 +1,6 @@
 import { 
   FolderOpen, RefreshCw, GitBranch, GitCommit, Network, Package, 
-  Tag, RotateCcw, Eye, Keyboard, Settings2, Moon, Sun 
+  Tag, RotateCcw, Eye, Keyboard, Settings2, Moon, Sun, FileArchive 
 } from 'lucide-react';
 import type { TabUIState } from '../types/tab';
 
@@ -63,6 +63,7 @@ export default function Toolbar({
               showStashManager: false,
               showTagManager: false,
               showReflogViewer: false,
+              showBundleManager: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showBranchManager
@@ -92,6 +93,7 @@ export default function Toolbar({
               showCommitGraph: false,
               showTagManager: false,
               showReflogViewer: false,
+              showBundleManager: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showStashManager
@@ -112,6 +114,7 @@ export default function Toolbar({
               showCommitGraph: false,
               showStashManager: false,
               showReflogViewer: false,
+              showBundleManager: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showTagManager
@@ -132,6 +135,7 @@ export default function Toolbar({
               showCommitGraph: false,
               showStashManager: false,
               showTagManager: false,
+              showBundleManager: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showReflogViewer
@@ -152,6 +156,7 @@ export default function Toolbar({
               showStashManager: false,
               showTagManager: false,
               showReflogViewer: false,
+              showBundleManager: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showRemoteManager
@@ -172,6 +177,7 @@ export default function Toolbar({
               showStashManager: false,
               showTagManager: false,
               showReflogViewer: false,
+              showBundleManager: false,
             })}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
               uiState?.showCommitGraph
@@ -181,6 +187,27 @@ export default function Toolbar({
             title="커밋 그래프"
           >
             <Eye size={18} />
+          </button>
+
+          {/* Bundle Manager */}
+          <button
+            onClick={() => onUpdateUIState(activeTabId, {
+              showBundleManager: !uiState?.showBundleManager,
+              showBranchManager: false,
+              showRemoteManager: false,
+              showStashManager: false,
+              showTagManager: false,
+              showReflogViewer: false,
+              showCommitGraph: false,
+            })}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+              uiState?.showBundleManager
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+            title="Git Bundle"
+          >
+            <FileArchive size={18} />
           </button>
         </>
       )}

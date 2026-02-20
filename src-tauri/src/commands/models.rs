@@ -108,6 +108,18 @@ pub struct DiffStat {
     pub is_binary: bool,
 }
 
+/// A single changed file in a commit with status and diff statistics.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CommitFileChange {
+    pub path: String,
+    /// "added", "modified", "deleted", "renamed"
+    pub status: String,
+    pub additions: u32,
+    pub deletions: u32,
+    pub is_binary: bool,
+    pub old_path: Option<String>,
+}
+
 // ============================================================================
 // Image Diff
 // ============================================================================

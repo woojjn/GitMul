@@ -7,7 +7,7 @@
  *   3. Components stay free of direct Tauri imports.
  */
 import { invoke } from '@tauri-apps/api/tauri';
-import { open } from '@tauri-apps/api/dialog';
+import { open, save } from '@tauri-apps/api/dialog';
 
 import type {
   RepositoryInfo,
@@ -17,6 +17,7 @@ import type {
   RecentRepo,
   ParsedDiff,
   DiffStat,
+  CommitFileChange,
   ImageDiffResult,
   RemoteInfo,
   RemoteBranchInfo,
@@ -30,6 +31,9 @@ import type {
   TagInfo,
   FileHistoryEntry,
   ReflogEntry,
+  BundleRefInfo,
+  BundleCreateResult,
+  BundleVerifyResult,
 } from '../types/git';
 
 // ============================================================================
@@ -98,6 +102,9 @@ export const getFileDiff = (repoPath: string, filePath: string, staged: boolean)
 
 export const getCommitDiff = (repoPath: string, commitId: string) =>
   invoke<string>('get_commit_diff', { repoPath, commitId });
+
+export const getCommitFileChanges = (repoPath: string, commitId: string) =>
+  invoke<CommitFileChange[]>('get_commit_file_changes', { repoPath, commitId });
 
 export const parseDiff = (diffText: string) =>
   invoke<ParsedDiff>('parse_diff', { diffText });
@@ -283,8 +290,33 @@ export const resetToReflog = (repoPath: string, refName: string, resetType: stri
   invoke<void>('reset_to_reflog', { repoPath, refName, resetType });
 
 // ============================================================================
+// Bundle
+// ============================================================================
+
+export const listBundleRefs = (repoPath: string) =>
+  invoke<BundleRefInfo[]>('list_bundle_refs', { repoPath });
+
+export const createBundle = (repoPath: string, outputPath: string, refs: string[]) =>
+  invoke<BundleCreateResult>('create_bundle', { repoPath, outputPath, refs });
+
+export const verifyBundle = (repoPath: string, bundlePath: string) =>
+  invoke<BundleVerifyResult>('verify_bundle', { repoPath, bundlePath });
+
+export const fetchFromBundle = (repoPath: string, bundlePath: string) =>
+  invoke<string>('fetch_from_bundle', { repoPath, bundlePath });
+
+export const cloneFromBundle = (bundlePath: string, targetPath: string) =>
+  invoke<string>('clone_from_bundle', { bundlePath, targetPath });
+
+// ============================================================================
 // Dialog Helpers (Tauri Dialog API)
 // ============================================================================
 
 export const openDirectoryDialog = (title = '레포지토리 선택') =>
   open({ directory: true, multiple: false, title });
+
+export const openFileDialog = (title = '파일 선택', filters?: { name: string; extensions: string[] }[]) =>
+  open({ directory: false, multiple: false, title, filters });
+
+export const saveFileDialog = (title = '파일 저장', defaultPath?: string, filters?: { name: string; extensions: string[] }[]) =>
+  save({ title, defaultPath, filters });

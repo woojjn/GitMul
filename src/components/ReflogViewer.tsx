@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as api from '../services/api';
 import type { ReflogEntry } from '../types/git';
-import { RotateCcw, X, AlertCircle, CheckCircle } from 'lucide-react';
+import { RotateCcw, X, AlertCircle } from 'lucide-react';
 
 interface ReflogViewerProps {
   repoPath: string;

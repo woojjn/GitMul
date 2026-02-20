@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as api from '../services/api';
 import type { RemoteInfo, RemoteBranchInfo, SyncProgress } from '../types/git';
-import { Cloud, CloudOff, Download, Upload, RefreshCw, Plus, Trash2, Check, X } from 'lucide-react';
+import { Cloud, CloudOff, Download, Upload, RefreshCw, Plus, Trash2, X } from 'lucide-react';
 
 interface RemoteManagerProps {
   repoPath: string;

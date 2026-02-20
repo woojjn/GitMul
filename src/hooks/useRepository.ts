@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import * as api from '../services/api';
-import type { RecentRepo, RepositoryInfo, CommitInfo, FileStatus, BranchInfo } from '../types/git';
+import type { RecentRepo } from '../types/git';
 import type { TabManager } from './useTabManager';
 
 /**

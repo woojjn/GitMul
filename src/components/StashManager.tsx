@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as api from '../services/api';
 import type { StashInfo } from '../types/git';
-import { Package, Save, Trash2, RefreshCw, Clock, X } from 'lucide-react';
+import { Package, Save, Trash2, RefreshCw, X } from 'lucide-react';
 
 interface StashManagerProps {
   repoPath: string;

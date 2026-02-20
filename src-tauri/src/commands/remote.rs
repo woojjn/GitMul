@@ -1,5 +1,5 @@
 use git2::{
-    AutotagOption, BranchType, Direction, FetchOptions, PushOptions,
+    AutotagOption, BranchType, Cred, Direction, FetchOptions, PushOptions,
     RemoteCallbacks,
 };
 use std::sync::{Arc, Mutex};
@@ -16,6 +16,54 @@ lazy_static::lazy_static! {
         bytes: 0,
         message: String::new(),
     }));
+}
+
+/// Build credential callbacks that try SSH agent, SSH key files, then user config.
+fn build_credentials_callbacks() -> RemoteCallbacks<'static> {
+    let mut callbacks = RemoteCallbacks::new();
+    let tried_ssh_key = std::cell::Cell::new(false);
+
+    callbacks.credentials(move |_url, username_from_url, allowed_types| {
+        let username = username_from_url.unwrap_or("git");
+
+        // Try SSH agent first
+        if allowed_types.is_ssh_key() {
+            if !tried_ssh_key.get() {
+                tried_ssh_key.set(true);
+                // Try default SSH key locations
+                let home = dirs::home_dir().unwrap_or_default();
+                let id_rsa = home.join(".ssh/id_rsa");
+                let id_ed25519 = home.join(".ssh/id_ed25519");
+
+                if id_ed25519.exists() {
+                    return Cred::ssh_key(username, None, &id_ed25519, None);
+                }
+                if id_rsa.exists() {
+                    return Cred::ssh_key(username, None, &id_rsa, None);
+                }
+                // Fall back to SSH agent
+                return Cred::ssh_key_from_agent(username);
+            }
+        }
+
+        // Try credential helper (for HTTPS with saved tokens)
+        if allowed_types.is_user_pass_plaintext() {
+            return Cred::credential_helper(
+                &git2::Config::open_default().unwrap_or_else(|_| git2::Config::new().unwrap()),
+                _url,
+                username_from_url,
+            );
+        }
+
+        // Default
+        if allowed_types.is_default() {
+            return Cred::default();
+        }
+
+        Err(git2::Error::from_str("인증 방법을 찾을 수 없습니다"))
+    });
+
+    callbacks
 }
 
 /// List all remotes.
@@ -78,7 +126,7 @@ pub async fn fetch_remote(repo_path: String, remote_name: String) -> Result<Stri
         .find_remote(&normalized_name)
         .map_err(|e| format!("원격 '{}' 찾기 실패: {}", normalized_name, e))?;
 
-    let mut callbacks = RemoteCallbacks::new();
+    let mut callbacks = build_credentials_callbacks();
     callbacks.transfer_progress(|progress| {
         let mut sync_progress = SYNC_PROGRESS.lock().unwrap();
         sync_progress.current = progress.received_objects() as u32;
@@ -184,7 +232,7 @@ pub async fn push_changes(
         .find_remote(&normalized_remote)
         .map_err(|e| format!("원격 '{}' 찾기 실패: {}", normalized_remote, e))?;
 
-    let mut callbacks = RemoteCallbacks::new();
+    let mut callbacks = build_credentials_callbacks();
     callbacks.push_transfer_progress(|current, total, bytes| {
         let mut progress = SYNC_PROGRESS.lock().unwrap();
         progress.current = current as u32;
@@ -290,8 +338,9 @@ pub async fn check_remote_connection(
         .find_remote(&normalized_name)
         .map_err(|e| format!("원격 '{}' 찾기 실패: {}", normalized_name, e))?;
 
+    let callbacks = build_credentials_callbacks();
     remote
-        .connect(Direction::Fetch)
+        .connect_auth(Direction::Fetch, Some(callbacks), None)
         .map_err(|e| format!("원격 연결 실패: {}", e))?;
 
     let connected = remote.connected();

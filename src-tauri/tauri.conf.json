@@ -15,12 +15,13 @@
       "all": false,
       "shell": {
         "all": false,
-        "open": true
+        "open": true,
+        "execute": false
       },
       "dialog": {
         "all": true,
         "open": true,
-        "save": false
+        "save": true
       },
       "fs": {
         "all": false,

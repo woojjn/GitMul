@@ -18,6 +18,7 @@ import ConflictResolver from './components/ConflictResolver';
 import TagManager from './components/TagManager';
 import FileHistory from './components/FileHistory';
 import ReflogViewer from './components/ReflogViewer';
+import BundleManager from './components/BundleManager';
 import MergeDialog from './components/MergeDialog';
 import CherryPickDialog from './components/CherryPickDialog';
 import RevertDialog from './components/RevertDialog';
@@ -32,8 +33,7 @@ import { useTabManager } from './hooks/useTabManager';
 import { useRepository } from './hooks/useRepository';
 import { useGitOperations } from './hooks/useGitOperations';
 
-// Types
-import type { RecentRepo, RepositoryInfo, CommitInfo, FileStatus, BranchInfo } from './types/git';
+// Types (RecentRepo used by Sidebar)
 
 function App() {
   // Global UI State (not tab-specific)
@@ -48,12 +48,9 @@ function App() {
     tabs,
     activeTabId,
     activeTab,
-    addTab,
     closeTab,
     switchTab,
     updateTabUIState,
-    updateTabDataState,
-    updateTabTitle,
     switchToNextTab,
     switchToPrevTab,
   } = tabManager;
@@ -298,6 +295,18 @@ function App() {
                           repoPath={dataState.currentRepo.path}
                           onClose={() => updateTabUIState(activeTabId!, { showConflictResolver: false })}
                           onResolved={refreshRepository}
+                        />
+                      </div>
+                    );
+                  }
+                  if (uiState?.showBundleManager) {
+                    return (
+                      <div className="flex-1 overflow-auto">
+                        <BundleManager
+                          repoPath={dataState.currentRepo.path}
+                          onClose={() => updateTabUIState(activeTabId!, { showBundleManager: false })}
+                          onSuccess={showSuccess}
+                          onError={showError}
                         />
                       </div>
                     );

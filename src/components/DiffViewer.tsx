@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as api from '../services/api';
-import type { DiffLine, DiffHunk, ParsedDiff } from '../types/git';
+import type { ParsedDiff } from '../types/git';
 import ImageDiff from './ImageDiff';
 
 interface DiffViewerProps {
@@ -42,7 +42,6 @@ function TextDiffViewer({
   staged,
   onClose,
 }: DiffViewerProps) {
-  const [diffText, setDiffText] = useState<string>('');
   const [parsedDiff, setParsedDiff] = useState<ParsedDiff | null>(null);
   const [viewMode, setViewMode] = useState<'unified' | 'split'>('unified');
   const [wordDiffEnabled, setWordDiffEnabled] = useState(true); // Word-level diff toggle
@@ -58,11 +57,8 @@ function TextDiffViewer({
       setLoading(true);
       setError('');
 
-      // Get diff text
+      // Get diff text and parse it
       const diff = await api.getFileDiff(repoPath, filePath, staged);
-      setDiffText(diff);
-
-      // Parse diff
       const parsed = await api.parseDiff(diff);
       setParsedDiff(parsed);
     } catch (err: any) {
@@ -72,35 +68,6 @@ function TextDiffViewer({
     }
   };
 
-  const getLanguage = (path: string): string => {
-    const ext = path.split('.').pop()?.toLowerCase() || '';
-    const langMap: Record<string, string> = {
-      js: 'javascript',
-      jsx: 'jsx',
-      ts: 'typescript',
-      tsx: 'tsx',
-      py: 'python',
-      rb: 'ruby',
-      rs: 'rust',
-      go: 'go',
-      java: 'java',
-      c: 'c',
-      cpp: 'cpp',
-      cs: 'csharp',
-      php: 'php',
-      html: 'html',
-      css: 'css',
-      scss: 'scss',
-      json: 'json',
-      xml: 'xml',
-      yaml: 'yaml',
-      yml: 'yaml',
-      md: 'markdown',
-      sh: 'bash',
-      sql: 'sql',
-    };
-    return langMap[ext] || 'text';
-  };
 
   /**
    * Word-level diff rendering helper

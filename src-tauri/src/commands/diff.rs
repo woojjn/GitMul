@@ -2,7 +2,7 @@ use git2::{DiffOptions, Oid, Repository};
 use std::path::Path;
 
 use super::models::{
-    DiffHunk, DiffLine, DiffStat, ImageData, ImageDiffResult, ParsedDiff,
+    CommitFileChange, DiffHunk, DiffLine, DiffStat, ImageData, ImageDiffResult, ParsedDiff,
 };
 use super::utils::{normalize_unicode, open_repo};
 
@@ -87,6 +87,120 @@ pub async fn get_commit_diff(repo_path: String, commit_id: String) -> Result<Str
     .map_err(|e| format!("Diff 출력 실패: {}", e))?;
 
     Ok(patch_text)
+}
+
+/// Get list of changed files for a specific commit with status and diff stats.
+#[tauri::command]
+pub async fn get_commit_file_changes(
+    repo_path: String,
+    commit_id: String,
+) -> Result<Vec<CommitFileChange>, String> {
+    let repo = open_repo(&repo_path)?;
+    let oid = Oid::from_str(&commit_id).map_err(|e| format!("잘못된 커밋 SHA: {}", e))?;
+    let commit = repo.find_commit(oid).map_err(|e| format!("커밋 찾기 실패: {}", e))?;
+
+    let commit_tree = commit.tree().map_err(|e| format!("트리 접근 실패: {}", e))?;
+
+    let parent_tree = if commit.parent_count() > 0 {
+        Some(
+            commit
+                .parent(0)
+                .map_err(|e| format!("부모 커밋 접근 실패: {}", e))?
+                .tree()
+                .map_err(|e| format!("부모 트리 접근 실패: {}", e))?,
+        )
+    } else {
+        None
+    };
+
+    let diff = repo
+        .diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), None)
+        .map_err(|e| format!("Diff 생성 실패: {}", e))?;
+
+    let mut changes: Vec<CommitFileChange> = Vec::new();
+
+    // Collect file info
+    diff.foreach(
+        &mut |delta, _progress| {
+            let new_path = delta
+                .new_file()
+                .path()
+                .unwrap_or(std::path::Path::new(""))
+                .to_str()
+                .unwrap_or("")
+                .to_string();
+            let old_path = delta
+                .old_file()
+                .path()
+                .unwrap_or(std::path::Path::new(""))
+                .to_str()
+                .unwrap_or("")
+                .to_string();
+
+            let status = match delta.status() {
+                git2::Delta::Added => "added",
+                git2::Delta::Deleted => "deleted",
+                git2::Delta::Modified => "modified",
+                git2::Delta::Renamed => "renamed",
+                git2::Delta::Copied => "copied",
+                _ => "modified",
+            };
+
+            let path = if status == "deleted" {
+                old_path.clone()
+            } else {
+                new_path.clone()
+            };
+
+            let renamed_old = if status == "renamed" || status == "copied" {
+                Some(old_path)
+            } else {
+                None
+            };
+
+            changes.push(CommitFileChange {
+                path: normalize_unicode(&path),
+                status: status.to_string(),
+                additions: 0,
+                deletions: 0,
+                is_binary: delta.new_file().is_binary() || delta.old_file().is_binary(),
+                old_path: renamed_old,
+            });
+            true
+        },
+        None,
+        None,
+        None,
+    )
+    .map_err(|e| format!("Diff 순회 실패: {}", e))?;
+
+    // Count additions/deletions per file
+    if !changes.is_empty() {
+        use std::cell::Cell;
+        let idx: Cell<i32> = Cell::new(-1);
+        diff.foreach(
+            &mut |_delta, _progress| {
+                idx.set(idx.get() + 1);
+                true
+            },
+            None,
+            None,
+            Some(&mut |_delta, _hunk, line| {
+                let i = idx.get() as usize;
+                if i < changes.len() {
+                    match line.origin() {
+                        '+' => changes[i].additions += 1,
+                        '-' => changes[i].deletions += 1,
+                        _ => {}
+                    }
+                }
+                true
+            }),
+        )
+        .map_err(|e| format!("Diff 통계 수집 실패: {}", e))?;
+    }
+
+    Ok(changes)
 }
 
 /// Parse unified diff format into structured data.

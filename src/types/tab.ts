@@ -13,6 +13,7 @@ export interface TabUIState {
   showReflogViewer: boolean;
   showConflictResolver: boolean;
   showMergeDialog: boolean;
+  showBundleManager: boolean;
   showCherryPickDialog: boolean;
   showRevertDialog: boolean;
   
@@ -24,6 +25,9 @@ export interface TabUIState {
   // File views
   fileHistoryPath: string | null;
   selectedFile: { path: string; staged: boolean } | null;
+  
+  // Commit detail view
+  selectedCommitSha: string | null;
   
   // Cherry-pick/Revert state
   cherryPickCommit: { sha: string; message: string } | null;
@@ -84,6 +88,7 @@ export const createInitialUIState = (): TabUIState => ({
   showReflogViewer: false,
   showConflictResolver: false,
   showMergeDialog: false,
+  showBundleManager: false,
   showCherryPickDialog: false,
   showRevertDialog: false,
   commitDialogOpen: false,
@@ -91,6 +96,7 @@ export const createInitialUIState = (): TabUIState => ({
   showAccessibilitySettings: false,
   fileHistoryPath: null,
   selectedFile: null,
+  selectedCommitSha: null,
   cherryPickCommit: null,
   revertCommit: null,
 });

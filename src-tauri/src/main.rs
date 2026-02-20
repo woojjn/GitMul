@@ -10,8 +10,8 @@ use commands::branch::{
 use commands::cherrypick::{cherry_pick, cherry_pick_abort, cherry_pick_continue};
 use commands::conflict::{abort_merge, get_conflicts, resolve_conflict};
 use commands::diff::{
-    check_is_image, get_commit_diff, get_diff_stats, get_file_content, get_file_diff,
-    get_image_at_commit, get_image_diff, parse_diff,
+    check_is_image, get_commit_diff, get_commit_file_changes, get_diff_stats, get_file_content,
+    get_file_diff, get_image_at_commit, get_image_diff, parse_diff,
 };
 use commands::git::{
     create_commit, get_commit_history, get_repository_status, open_repository, stage_all,
@@ -29,6 +29,9 @@ use commands::repos::{add_recent_repo, get_recent_repos};
 use commands::revert::revert_commit;
 use commands::stash::{stash_apply, stash_drop, stash_list, stash_pop, stash_save};
 use commands::tags::{create_annotated_tag, create_tag, delete_tag, list_tags, push_tag};
+use commands::bundle::{
+    list_bundle_refs, create_bundle, verify_bundle, fetch_from_bundle, clone_from_bundle,
+};
 
 fn main() {
     tauri::Builder::default()
@@ -54,6 +57,7 @@ fn main() {
             // Diff
             get_file_diff,
             get_commit_diff,
+            get_commit_file_changes,
             parse_diff,
             get_file_content,
             get_diff_stats,
@@ -110,6 +114,12 @@ fn main() {
             // Reflog
             get_reflog,
             reset_to_reflog,
+            // Bundle
+            list_bundle_refs,
+            create_bundle,
+            verify_bundle,
+            fetch_from_bundle,
+            clone_from_bundle,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
