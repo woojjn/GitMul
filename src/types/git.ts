@@ -15,6 +15,9 @@ export interface BranchInfo {
   is_current: boolean;
   is_remote: boolean;
   commit_sha: string;
+  commit_message?: string;
+  author?: string;
+  timestamp?: number;
 }
 
 // Repository information

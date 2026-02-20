@@ -6,7 +6,7 @@ use unicode_normalization::UnicodeNormalization;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CommitInfo {
-    pub id: String,
+    pub sha: String,
     pub author: String,
     pub email: String,
     pub message: String,
@@ -25,7 +25,8 @@ pub struct FileStatus {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RepositoryInfo {
     pub path: String,
-    pub branch: String,
+    pub name: String,
+    pub current_branch: String,
     pub remote_url: Option<String>,
 }
 
@@ -71,16 +72,25 @@ pub async fn open_repository(path: String) -> Result<RepositoryInfo, String> {
         .ok()
         .and_then(|remote| remote.url().map(|s| s.to_string()));
     
+    // Extract repo name from path
+    let name = std::path::Path::new(&path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown")
+        .to_string();
+    
     Ok(RepositoryInfo {
         path: normalize_path(&path),
-        branch,
+        name,
+        current_branch: branch,
         remote_url,
     })
 }
 
-/// 커밋 히스토리 가져오기
+/// 커밋 히스토리 가져오기 (alias: get_commits)
 #[tauri::command]
-pub async fn get_commit_history(path: String, limit: usize) -> Result<Vec<CommitInfo>, String> {
+pub async fn get_commit_history(repo_path: String, limit: usize) -> Result<Vec<CommitInfo>, String> {
+    let path = repo_path;
     let repo = Repository::open(&path)
         .map_err(|e| format!("레포지토리를 열 수 없습니다: {}", e))?;
     
@@ -107,7 +117,7 @@ pub async fn get_commit_history(path: String, limit: usize) -> Result<Vec<Commit
             .collect();
         
         commits.push(CommitInfo {
-            id: oid.to_string(),
+            sha: oid.to_string(),
             author: commit.author().name().unwrap_or("Unknown").to_string(),
             email: commit.author().email().unwrap_or("").to_string(),
             message: commit.message().unwrap_or("").to_string(),
@@ -122,7 +132,8 @@ pub async fn get_commit_history(path: String, limit: usize) -> Result<Vec<Commit
 
 /// 레포지토리 상태 가져오기 (변경된 파일 목록)
 #[tauri::command]
-pub async fn get_repository_status(path: String) -> Result<Vec<FileStatus>, String> {
+pub async fn get_repository_status(repo_path: String) -> Result<Vec<FileStatus>, String> {
+    let path = repo_path;
     let repo = Repository::open(&path)
         .map_err(|e| format!("레포지토리를 열 수 없습니다: {}", e))?;
     
@@ -132,25 +143,48 @@ pub async fn get_repository_status(path: String) -> Result<Vec<FileStatus>, Stri
     
     for entry in statuses.iter() {
         let status = entry.status();
-        let path = normalize_path(entry.path().unwrap_or(""));
+        let file_path = normalize_path(entry.path().unwrap_or(""));
         
-        let status_str = if status.is_index_new() || status.is_index_modified() || status.is_index_deleted() {
-            "staged"
-        } else if status.is_wt_new() {
-            "untracked"
-        } else if status.is_wt_modified() {
-            "modified"
-        } else if status.is_wt_deleted() {
-            "deleted"
-        } else {
-            "unknown"
-        };
+        let is_index_changed = status.is_index_new() || status.is_index_modified() || status.is_index_deleted();
+        let is_wt_changed = status.is_wt_new() || status.is_wt_modified() || status.is_wt_deleted();
         
-        files.push(FileStatus {
-            path,
-            status: status_str.to_string(),
-            staged: status.is_index_new() || status.is_index_modified() || status.is_index_deleted(),
-        });
+        // If file has staged changes, add a staged entry
+        if is_index_changed {
+            let staged_status = if status.is_index_new() {
+                "untracked"
+            } else if status.is_index_modified() {
+                "modified"
+            } else if status.is_index_deleted() {
+                "deleted"
+            } else {
+                "staged"
+            };
+            files.push(FileStatus {
+                path: file_path.clone(),
+                status: staged_status.to_string(),
+                staged: true,
+            });
+        }
+        
+        // If file also has working directory changes, add an unstaged entry
+        if is_wt_changed {
+            let unstaged_status = if status.is_wt_new() {
+                "untracked"
+            } else if status.is_wt_modified() {
+                "modified"
+            } else if status.is_wt_deleted() {
+                "deleted"
+            } else {
+                "unknown"
+            };
+            files.push(FileStatus {
+                path: file_path,
+                status: unstaged_status.to_string(),
+                staged: false,
+            });
+        }
+        
+        // Edge case: file only has index changes but no WT changes (already handled above)
     }
     
     Ok(files)
@@ -158,7 +192,8 @@ pub async fn get_repository_status(path: String) -> Result<Vec<FileStatus>, Stri
 
 /// 파일 Stage (인덱스에 추가)
 #[tauri::command]
-pub async fn stage_file(repo_path: String, file_path: String) -> Result<(), String> {
+pub async fn stage_file(repo_path: String, path: String) -> Result<(), String> {
+    let file_path = path;
     let repo = Repository::open(&repo_path)
         .map_err(|e| format!("레포지토리를 열 수 없습니다: {}", e))?;
     
@@ -175,7 +210,8 @@ pub async fn stage_file(repo_path: String, file_path: String) -> Result<(), Stri
 
 /// 파일 Unstage (인덱스에서 제거)
 #[tauri::command]
-pub async fn unstage_file(repo_path: String, file_path: String) -> Result<(), String> {
+pub async fn unstage_file(repo_path: String, path: String) -> Result<(), String> {
+    let file_path = path;
     let repo = Repository::open(&repo_path)
         .map_err(|e| format!("레포지토리를 열 수 없습니다: {}", e))?;
     
@@ -225,9 +261,13 @@ pub async fn stage_all(repo_path: String) -> Result<(), String> {
     
     let mut index = repo.index().map_err(|e| e.to_string())?;
     
-    // 모든 변경사항을 인덱스에 추가
-    index.add_all(["."].iter(), git2::IndexAddOption::DEFAULT, None)
+    // 모든 변경사항을 인덱스에 추가 (삭제된 파일도 반영)
+    index.add_all(["."].iter(), git2::IndexAddOption::DEFAULT | git2::IndexAddOption::CHECK_PATHSPEC, None)
         .map_err(|e| format!("전체 스테이징 실패: {}", e))?;
+    
+    // Also handle deleted files by updating index to match working dir
+    index.update_all(["."].iter(), None)
+        .map_err(|e| format!("삭제된 파일 업데이트 실패: {}", e))?;
     
     index.write().map_err(|e| e.to_string())?;
     

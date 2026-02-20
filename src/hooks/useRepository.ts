@@ -64,10 +64,20 @@ export function useRepository({ tabManager, onSuccess, onError }: UseRepositoryP
     try {
       const repoInfo = await invoke<RepositoryInfo>('open_repository', { path });
       
+      // Add to recent repos
+      try {
+        await invoke('add_recent_repo', { path });
+        await loadRecentRepos();
+      } catch (err) {
+        console.warn('Failed to add to recent repos:', err);
+      }
+      
       // Reuse existing tab if repository is already open
       const existingTab = tabs.find((t: any) => t.repoPath === path);
       if (existingTab) {
         switchTab(existingTab.id);
+        // Refresh existing tab data
+        await loadRepositoryData(existingTab.id, path);
       } else {
         // Create new tab
         const newTab = addTab(path, repoInfo.name);
@@ -90,30 +100,33 @@ export function useRepository({ tabManager, onSuccess, onError }: UseRepositoryP
    * - Commits (last 100)
    * - File changes (staged/unstaged)
    * - Branches (local and remote)
+   * Each loaded independently so partial failures don't block other data
    */
   const loadRepositoryData = async (tabId: string, repoPath: string) => {
     try {
       updateTabDataState(tabId, { loading: true });
 
-      // Load commits
-      const commits = await invoke<CommitInfo[]>('get_commits', {
-        repoPath,
-        limit: 100,
-      });
+      // Load all data in parallel with independent error handling
+      const [commitsResult, changesResult, branchesResult] = await Promise.allSettled([
+        invoke<CommitInfo[]>('get_commit_history', { repoPath, limit: 100 }),
+        invoke<FileStatus[]>('get_repository_status', { repoPath }),
+        invoke<BranchInfo[]>('list_branches', { repoPath }),
+      ]);
 
-      // Load file changes
-      const changes = await invoke<FileStatus[]>('get_file_changes', {
-        repoPath,
-      });
+      const commits = commitsResult.status === 'fulfilled' ? commitsResult.value : [];
+      const changes = changesResult.status === 'fulfilled' ? changesResult.value : [];
+      const branches = branchesResult.status === 'fulfilled' ? branchesResult.value : [];
 
-      // Load branches
-      const branchNames = await invoke<string[]>('get_branches', { repoPath });
-      const branches: BranchInfo[] = branchNames.map(name => ({
-        name,
-        is_current: false, // TODO: Backend should provide this info
-        is_remote: name.startsWith('origin/'),
-        commit_sha: '', // TODO: Backend should provide this
-      }));
+      // Log any individual failures
+      if (commitsResult.status === 'rejected') {
+        console.warn('Failed to load commits:', commitsResult.reason);
+      }
+      if (changesResult.status === 'rejected') {
+        console.warn('Failed to load file changes:', changesResult.reason);
+      }
+      if (branchesResult.status === 'rejected') {
+        console.warn('Failed to load branches:', branchesResult.reason);
+      }
 
       updateTabDataState(tabId, {
         commits,

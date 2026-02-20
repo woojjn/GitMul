@@ -22,7 +22,7 @@ const MergeDialog: React.FC<MergeDialogProps> = ({
   const [selectedBranch, setSelectedBranch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{ success: boolean; message: string; conflicts: string[] } | null>(null);
 
   const handleMerge = async () => {
     if (!selectedBranch) {
@@ -37,7 +37,7 @@ const MergeDialog: React.FC<MergeDialogProps> = ({
       // Check if merge is possible
       const canMerge = await invoke<boolean>('can_merge', {
         repoPath,
-        branch: selectedBranch,
+        sourceBranch: selectedBranch,
       });
 
       if (!canMerge) {
@@ -47,23 +47,24 @@ const MergeDialog: React.FC<MergeDialogProps> = ({
       }
 
       // Perform merge
-      const mergeResult = await invoke('merge_branch', {
+      const mergeResult = await invoke<string>('merge_branch', {
         repoPath,
-        branch: selectedBranch,
-        fastForward: true,
+        sourceBranch: selectedBranch,
+        noFastForward: false,
       });
 
-      setResult(mergeResult);
+      // merge_branch returns a string, not an object
+      setResult({ success: true, message: mergeResult as string, conflicts: [] });
       
-      if ((mergeResult as any).success) {
-        setTimeout(() => {
-          onSuccess();
-          onClose();
-        }, 2000);
-      } else if ((mergeResult as any).conflicts && (mergeResult as any).conflicts.length > 0) {
-        // Has conflicts - will show in UI, user can proceed to conflict resolver
+      if ((mergeResult as string).includes('conflict')) {
+        // Has conflicts
         setTimeout(() => {
           if (onConflict) onConflict();
+          onClose();
+        }, 2000);
+      } else {
+        setTimeout(() => {
+          onSuccess();
           onClose();
         }, 2000);
       }
