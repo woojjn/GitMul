@@ -1,0 +1,202 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    'Pretendard', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  background: #2d2d2d;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #555;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* Animations */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-in;
+}
+
+/* Focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.dark *:focus-visible {
+  outline-color: #60a5fa;
+}
+
+/* Accessibility: Line-height constraints for interactive elements */
+/* Only apply to inline buttons, not wrapper containers */
+button:not(.flex):not(.grid),
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  line-height: 1.5 !important;
+  min-height: max-content;
+}
+
+/* Accessibility: Toast container responsive width */
+.toast-container {
+  max-width: min(90vw, 500px);
+}
+
+/* Accessibility: Text overflow handling */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Accessibility: Dialog scrolling */
+.dialog-content {
+  max-height: calc(80vh - 8rem);
+  overflow-y: auto;
+}
+
+/* High Contrast Mode */
+.high-contrast {
+  filter: contrast(1.15);
+}
+
+/* High contrast in dark mode - reduced intensity */
+.dark.high-contrast {
+  filter: contrast(1.1);
+}
+
+/* Word wrap for long content */
+.wrap-anywhere {
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Flexible heights for accessibility */
+.h-auto-accessible {
+  min-height: fit-content;
+  height: auto;
+}
+
+/* Dialog max height with scroll */
+.dialog-scrollable {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.high-contrast * {
+  border-width: 1px;
+}
+
+/* High contrast: Enhanced button visibility */
+.high-contrast button {
+  box-shadow: 0 0 0 2px currentColor inset !important;
+  border-radius: 0.375rem;
+}
+
+.high-contrast button:hover {
+  box-shadow: 0 0 0 3px currentColor inset !important;
+}
+
+.high-contrast a {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+/* Reduced Motion */
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Reduced motion: Toast duration adjustment */
+.reduced-motion .toast {
+  animation-duration: 0.1s !important;
+}
+
+/* Monospace font only for code elements */
+.font-mono,
+code,
+pre,
+.diff-viewer {
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', Consolas, monospace) !important;
+}

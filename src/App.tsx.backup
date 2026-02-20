@@ -1,0 +1,671 @@
+import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/tauri';
+import { open } from '@tauri-apps/api/dialog';
+import { 
+  Moon, Sun, FolderOpen, RefreshCw, Settings2, Keyboard, 
+  GitBranch, GitCommit, Network, Package, Tag, RotateCcw,
+  Eye
+} from 'lucide-react';
+
+// Components
+import Sidebar from './components/Sidebar';
+import CommitHistory from './components/CommitHistory';
+import FileChanges from './components/FileChanges';
+import CommitDialog from './components/CommitDialog';
+import BranchManager from './components/BranchManager';
+import RemoteManager from './components/RemoteManager';
+import CommitGraph from './components/CommitGraph';
+import DiffViewer from './components/DiffViewer';
+import ShortcutHelp from './components/ShortcutHelp';
+import AccessibilitySettings from './components/AccessibilitySettings';
+import StashManager from './components/StashManager';
+import ConflictResolver from './components/ConflictResolver';
+import TagManager from './components/TagManager';
+import FileHistory from './components/FileHistory';
+import ReflogViewer from './components/ReflogViewer';
+import MergeDialog from './components/MergeDialog';
+import CherryPickDialog from './components/CherryPickDialog';
+import RevertDialog from './components/RevertDialog';
+
+// Hooks
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useAccessibility } from './hooks/useAccessibility';
+import { useToast } from './hooks/useToast';
+
+// Types
+import type { RecentRepo, RepositoryInfo, CommitInfo, FileStatus } from './types/git';
+
+function App() {
+  // State - UI
+  const [darkMode, setDarkMode] = useState(true);
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  const [showAccessibilitySettings, setShowAccessibilitySettings] = useState(false);
+  const [commitDialogOpen, setCommitDialogOpen] = useState(false);
+
+  // State - Views
+  const [showBranchManager, setShowBranchManager] = useState(false);
+  const [showRemoteManager, setShowRemoteManager] = useState(false);
+  const [showCommitGraph, setShowCommitGraph] = useState(false);
+  const [showStashManager, setShowStashManager] = useState(false);
+  const [showConflictResolver, setShowConflictResolver] = useState(false);
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [showReflogViewer, setShowReflogViewer] = useState(false);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [showCherryPickDialog, setShowCherryPickDialog] = useState(false);
+  const [showRevertDialog, setShowRevertDialog] = useState(false);
+  const [selectedCommitForAction, setSelectedCommitForAction] = useState<{ sha: string; message: string } | null>(null);
+
+  // State - Repository
+  const [recentRepos, setRecentRepos] = useState<RecentRepo[]>([]);
+  const [currentRepo, setCurrentRepo] = useState<RepositoryInfo | null>(null);
+  const [commits, setCommits] = useState<CommitInfo[]>([]);
+  const [fileChanges, setFileChanges] = useState<FileStatus[]>([]);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // State - File Details
+  const [selectedFile, setSelectedFile] = useState<{ path: string; staged: boolean } | null>(null);
+  const [fileHistoryPath, setFileHistoryPath] = useState<string | null>(null);
+
+  // Hooks
+  const { success: showSuccess, error: showError } = useToast();
+  const {} = useAccessibility();
+
+  // Load recent repos on mount
+  useEffect(() => {
+    loadRecentRepos();
+  }, []);
+
+  // Apply dark mode
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    {
+      key: 'o',
+      ctrl: true,
+      handler: () => openRepository(),
+      description: '레포지토리 열기',
+    },
+    {
+      key: 'r',
+      ctrl: true,
+      handler: () => {
+        if (currentRepo) {
+          refreshRepository();
+          showSuccess('새로고침 완료');
+        }
+      },
+      description: '새로고침',
+    },
+    {
+      key: 'k',
+      ctrl: true,
+      handler: () => {
+        const staged = fileChanges.filter(f => f.staged);
+        if (staged.length > 0) {
+          setCommitDialogOpen(true);
+        }
+      },
+      description: '커밋 다이얼로그',
+    },
+    {
+      key: 'a',
+      ctrl: true,
+      shift: true,
+      handler: () => {
+        if (currentRepo) handleStageAll();
+      },
+      description: '전체 스테이징',
+    },
+    {
+      key: 'b',
+      ctrl: true,
+      handler: () => {
+        setShowBranchManager(!showBranchManager);
+        setShowRemoteManager(false);
+        setShowCommitGraph(false);
+        setShowStashManager(false);
+      },
+      description: '브랜치 관리',
+    },
+    {
+      key: 'm',
+      ctrl: true,
+      handler: () => {
+        setShowRemoteManager(!showRemoteManager);
+        setShowBranchManager(false);
+        setShowCommitGraph(false);
+        setShowStashManager(false);
+      },
+      description: '원격 저장소',
+    },
+  ]);
+
+  const loadRecentRepos = async () => {
+    try {
+      const repos = await invoke<RecentRepo[]>('get_recent_repos');
+      setRecentRepos(repos);
+    } catch (error) {
+      console.error('Failed to load recent repos:', error);
+    }
+  };
+
+  const openRepository = async (path?: string) => {
+    try {
+      setLoading(true);
+      const selectedPath = path || await open({
+        directory: true,
+        multiple: false,
+        title: '레포지토리 선택',
+      }) as string;
+
+      if (!selectedPath) return;
+
+      const info = await invoke<RepositoryInfo>('open_repository', { path: selectedPath });
+      setCurrentRepo(info);
+      
+      await invoke('add_recent_repo', { path: selectedPath });
+      await loadRecentRepos();
+      await loadCommits(selectedPath);
+      await loadFileChanges(selectedPath);
+      await loadBranches(selectedPath);
+      
+      showSuccess('레포지토리 열기 완료');
+    } catch (error) {
+      showError(`레포지토리 열기 실패: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCommits = async (repoPath: string) => {
+    try {
+      const result = await invoke<CommitInfo[]>('get_commit_history', { 
+        repoPath, 
+        limit: 100 
+      });
+      setCommits(result);
+    } catch (error) {
+      console.error('Failed to load commits:', error);
+    }
+  };
+
+  const loadFileChanges = async (repoPath: string) => {
+    try {
+      const status = await invoke<FileStatus[]>('get_repository_status', { repoPath });
+      setFileChanges(status);
+    } catch (error) {
+      console.error('Failed to load file changes:', error);
+    }
+  };
+
+  const loadBranches = async (repoPath: string) => {
+    try {
+      const branchList = await invoke<any[]>('list_branches', { repoPath });
+      setBranches(branchList.map((b: any) => b.name));
+    } catch (error) {
+      console.error('Failed to load branches:', error);
+    }
+  };
+
+  const refreshRepository = async () => {
+    if (!currentRepo) return;
+    await loadCommits(currentRepo.path);
+    await loadFileChanges(currentRepo.path);
+    await loadBranches(currentRepo.path);
+  };
+
+  const handleStageFile = async (path: string) => {
+    if (!currentRepo) return;
+    try {
+      await invoke('stage_file', { 
+        repoPath: currentRepo.path, 
+        filePath: path 
+      });
+      await loadFileChanges(currentRepo.path);
+    } catch (error) {
+      showError(`파일 스테이징 실패: ${error}`);
+    }
+  };
+
+  const handleUnstageFile = async (path: string) => {
+    if (!currentRepo) return;
+    try {
+      await invoke('unstage_file', { 
+        repoPath: currentRepo.path, 
+        filePath: path 
+      });
+      await loadFileChanges(currentRepo.path);
+    } catch (error) {
+      showError(`파일 언스테이징 실패: ${error}`);
+    }
+  };
+
+  const handleStageAll = async () => {
+    if (!currentRepo) return;
+    try {
+      await invoke('stage_all', { repoPath: currentRepo.path });
+      await loadFileChanges(currentRepo.path);
+      showSuccess('모든 파일 스테이징 완료');
+    } catch (error) {
+      showError(`스테이징 실패: ${error}`);
+    }
+  };
+
+  const handleCommit = async (message: string, amend: boolean) => {
+    if (!currentRepo) return;
+    try {
+      if (amend) {
+        await invoke('amend_commit', { 
+          repoPath: currentRepo.path, 
+          message 
+        });
+      } else {
+        await invoke('create_commit', { 
+          repoPath: currentRepo.path, 
+          message 
+        });
+      }
+      await refreshRepository();
+      showSuccess(amend ? '커밋 수정 완료' : '커밋 생성 완료');
+    } catch (error) {
+      showError(`커밋 실패: ${error}`);
+    }
+  };
+
+  const stagedCount = fileChanges.filter(f => f.staged).length;
+
+  return (
+    <div className="h-screen flex bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      {/* Sidebar */}
+      <Sidebar
+        recentRepos={recentRepos}
+        currentRepo={currentRepo}
+        onSelectRepo={openRepository}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Toolbar */}
+        <div className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openRepository()}
+              className="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+              title="레포지토리 열기 (Ctrl+O)"
+            >
+              <FolderOpen size={18} />
+              <span className="text-sm font-medium">열기</span>
+            </button>
+
+            {currentRepo && (
+              <>
+                <button
+                  onClick={refreshRepository}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  title="새로고침 (Ctrl+R)"
+                >
+                  <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                </button>
+
+                <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
+
+                {/* v1.3 Buttons */}
+                <button
+                  onClick={() => {
+                    setShowBranchManager(!showBranchManager);
+                    setShowRemoteManager(false);
+                    setShowCommitGraph(false);
+                    setShowStashManager(false);
+                    setShowTagManager(false);
+                    setShowReflogViewer(false);
+                  }}
+                  className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    showBranchManager
+                      ? 'bg-blue-500 text-white'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title="브랜치 관리 (Ctrl+B)"
+                >
+                  <GitBranch size={18} />
+                </button>
+
+                <button
+                  onClick={() => setShowMergeDialog(true)}
+                  className="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  title="브랜치 병합"
+                >
+                  <GitCommit size={18} />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowStashManager(!showStashManager);
+                    setShowBranchManager(false);
+                    setShowRemoteManager(false);
+                    setShowCommitGraph(false);
+                    setShowTagManager(false);
+                    setShowReflogViewer(false);
+                  }}
+                  className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    showStashManager
+                      ? 'bg-blue-500 text-white'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title="Stash 관리"
+                >
+                  <Package size={18} />
+                </button>
+
+                {/* v1.4 Buttons */}
+                <button
+                  onClick={() => {
+                    setShowTagManager(!showTagManager);
+                    setShowBranchManager(false);
+                    setShowRemoteManager(false);
+                    setShowCommitGraph(false);
+                    setShowStashManager(false);
+                    setShowReflogViewer(false);
+                  }}
+                  className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    showTagManager
+                      ? 'bg-blue-500 text-white'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title="태그 관리"
+                >
+                  <Tag size={18} />
+                </button>
+
+                {/* v1.5 Buttons */}
+                <button
+                  onClick={() => {
+                    setShowReflogViewer(!showReflogViewer);
+                    setShowBranchManager(false);
+                    setShowRemoteManager(false);
+                    setShowCommitGraph(false);
+                    setShowStashManager(false);
+                    setShowTagManager(false);
+                  }}
+                  className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    showReflogViewer
+                      ? 'bg-blue-500 text-white'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title="Reflog"
+                >
+                  <RotateCcw size={18} />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowRemoteManager(!showRemoteManager);
+                    setShowBranchManager(false);
+                    setShowCommitGraph(false);
+                    setShowStashManager(false);
+                    setShowTagManager(false);
+                    setShowReflogViewer(false);
+                  }}
+                  className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    showRemoteManager
+                      ? 'bg-blue-500 text-white'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title="원격 관리 (Ctrl+M)"
+                >
+                  <Network size={18} />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowCommitGraph(!showCommitGraph);
+                    setShowBranchManager(false);
+                    setShowRemoteManager(false);
+                    setShowStashManager(false);
+                    setShowTagManager(false);
+                    setShowReflogViewer(false);
+                  }}
+                  className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    showCommitGraph
+                      ? 'bg-blue-500 text-white'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title="커밋 그래프"
+                >
+                  <Eye size={18} />
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowShortcutHelp(true)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="단축키 도움말"
+            >
+              <Keyboard size={18} />
+            </button>
+
+            <button
+              onClick={() => setShowAccessibilitySettings(true)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="접근성 설정"
+            >
+              <Settings2 size={18} />
+            </button>
+
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="테마 전환"
+            >
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 flex overflow-hidden">
+          {currentRepo ? (
+            <>
+              {showBranchManager ? (
+                <div className="flex-1 overflow-hidden">
+                  <BranchManager
+                    repoPath={currentRepo.path}
+                  />
+                </div>
+              ) : showRemoteManager ? (
+                <div className="flex-1 overflow-hidden">
+                  <RemoteManager
+                    repoPath={currentRepo.path}
+                    currentBranch={currentRepo.current_branch}
+                    onClose={() => setShowRemoteManager(false)}
+                  />
+                </div>
+              ) : showCommitGraph ? (
+                <div className="flex-1 overflow-hidden">
+                  <CommitGraph
+                    repoPath={currentRepo.path}
+                    commits={commits}
+                  />
+                </div>
+              ) : showStashManager ? (
+                <div className="flex-1 overflow-hidden">
+                  <StashManager
+                    repoPath={currentRepo.path}
+                    onClose={() => setShowStashManager(false)}
+                  />
+                </div>
+              ) : showConflictResolver ? (
+                <div className="flex-1 overflow-hidden">
+                  <ConflictResolver
+                    repoPath={currentRepo.path}
+                    onClose={() => setShowConflictResolver(false)}
+                    onResolved={refreshRepository}
+                  />
+                </div>
+              ) : showTagManager ? (
+                <div className="flex-1 overflow-hidden">
+                  <TagManager
+                    repoPath={currentRepo.path}
+                    onClose={() => setShowTagManager(false)}
+                  />
+                </div>
+              ) : showReflogViewer ? (
+                <div className="flex-1 overflow-hidden">
+                  <ReflogViewer
+                    repoPath={currentRepo.path}
+                    onClose={() => setShowReflogViewer(false)}
+                  />
+                </div>
+              ) : fileHistoryPath ? (
+                <div className="flex-1 overflow-hidden">
+                  <FileHistory
+                    repoPath={currentRepo.path}
+                    filePath={fileHistoryPath}
+                    onClose={() => setFileHistoryPath(null)}
+                  />
+                </div>
+              ) : selectedFile ? (
+                <div className="flex-1 overflow-hidden">
+                  <DiffViewer
+                    repoPath={currentRepo.path}
+                    filePath={selectedFile.path}
+                    staged={selectedFile.staged}
+                    onClose={() => setSelectedFile(null)}
+                  />
+                </div>
+              ) : (
+                <>
+                  {/* Left: Commits */}
+                  <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <CommitHistory
+                      commits={commits}
+                      onRefresh={refreshRepository}
+                      onCherryPick={(sha, message) => {
+                        setSelectedCommitForAction({ sha, message });
+                        setShowCherryPickDialog(true);
+                      }}
+                      onRevert={(sha, message) => {
+                        setSelectedCommitForAction({ sha, message });
+                        setShowRevertDialog(true);
+                      }}
+                    />
+                  </div>
+
+                  {/* Right: File Changes */}
+                  <div className="flex-1 overflow-hidden">
+                    <FileChanges
+                      files={fileChanges}
+                      onStage={handleStageFile}
+                      onUnstage={handleUnstageFile}
+                      onStageAll={handleStageAll}
+                      onFileClick={(path: string, staged: boolean) => setSelectedFile({ path, staged })}
+                      onRefresh={() => loadFileChanges(currentRepo.path)}
+                    />
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <FolderOpen size={64} className="mx-auto mb-4 text-gray-400" />
+                <h2 className="text-2xl font-bold mb-2">레포지토리를 열어주세요</h2>
+                <p className="text-gray-500 mb-4">Ctrl+O 또는 열기 버튼을 클릭하세요</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Dialogs */}
+      {commitDialogOpen && currentRepo && (
+        <CommitDialog
+          isOpen={commitDialogOpen}
+          onClose={() => setCommitDialogOpen(false)}
+          onCommit={handleCommit}
+          stagedCount={stagedCount}
+          repoPath={currentRepo.path}
+        />
+      )}
+
+      {showMergeDialog && currentRepo && (
+        <MergeDialog
+          repoPath={currentRepo.path}
+          currentBranch={currentRepo.current_branch}
+          branches={branches}
+          onClose={() => setShowMergeDialog(false)}
+          onSuccess={() => {
+            refreshRepository();
+            setShowMergeDialog(false);
+          }}
+          onConflict={() => {
+            setShowConflictResolver(true);
+            setShowMergeDialog(false);
+          }}
+        />
+      )}
+
+      {showShortcutHelp && (
+        <ShortcutHelp isOpen={showShortcutHelp} onClose={() => setShowShortcutHelp(false)} />
+      )}
+
+      {showAccessibilitySettings && (
+        <AccessibilitySettings isOpen={showAccessibilitySettings} onClose={() => setShowAccessibilitySettings(false)} />
+      )}
+
+      {/* v1.6: Cherry-pick Dialog */}
+      {showCherryPickDialog && selectedCommitForAction && currentRepo && (
+        <CherryPickDialog
+          commitSha={selectedCommitForAction.sha}
+          commitMessage={selectedCommitForAction.message}
+          repoPath={currentRepo.path}
+          onClose={() => {
+            setShowCherryPickDialog(false);
+            setSelectedCommitForAction(null);
+          }}
+          onSuccess={() => {
+            refreshRepository();
+            showSuccess('Cherry-pick 성공');
+          }}
+          onConflict={() => {
+            setShowConflictResolver(true);
+            setShowCherryPickDialog(false);
+          }}
+        />
+      )}
+
+      {/* v1.6: Revert Dialog */}
+      {showRevertDialog && selectedCommitForAction && currentRepo && (
+        <RevertDialog
+          commitSha={selectedCommitForAction.sha}
+          commitMessage={selectedCommitForAction.message}
+          repoPath={currentRepo.path}
+          onClose={() => {
+            setShowRevertDialog(false);
+            setSelectedCommitForAction(null);
+          }}
+          onSuccess={() => {
+            refreshRepository();
+            showSuccess('Revert 성공');
+          }}
+          onConflict={() => {
+            setShowConflictResolver(true);
+            setShowRevertDialog(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+export default App;

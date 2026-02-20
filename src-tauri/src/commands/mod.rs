@@ -1,0 +1,15 @@
+pub mod git;
+pub mod repos;
+pub mod branch;
+pub mod diff;
+pub mod remote;
+pub mod amend;
+pub mod stash;
+pub mod merge;
+pub mod conflict;
+pub mod cherrypick;
+pub mod revert;
+pub mod tags;
+pub mod history;
+pub mod rebase;
+pub mod reflog;
