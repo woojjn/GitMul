@@ -1,3 +1,8 @@
+// Shared infrastructure
+pub mod models;
+pub mod utils;
+
+// Command modules
 pub mod git;
 pub mod repos;
 pub mod branch;

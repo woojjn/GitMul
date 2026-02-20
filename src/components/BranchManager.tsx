@@ -1,21 +1,6 @@
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
-
-interface BranchInfo {
-  name: string;
-  is_current: boolean;
-  is_remote: boolean;
-  commit_sha: string;
-  commit_message: string;
-  author: string;
-  timestamp: number;
-}
-
-interface FileStatus {
-  path: string;
-  status: string;
-  staged: boolean;
-}
+import * as api from '../services/api';
+import type { BranchInfo, FileStatus } from '../types/git';
 
 interface BranchManagerProps {
   repoPath: string;
@@ -43,8 +28,8 @@ export default function BranchManager({ repoPath }: BranchManagerProps) {
       setLoading(true);
       setError('');
       const [branchList, current] = await Promise.all([
-        invoke<BranchInfo[]>('list_branches', { repoPath }),
-        invoke<string>('get_current_branch', { repoPath }),
+        api.listBranches(repoPath),
+        api.getCurrentBranch(repoPath),
       ]);
       setBranches(branchList);
       setCurrentBranch(current);
@@ -64,7 +49,7 @@ export default function BranchManager({ repoPath }: BranchManagerProps) {
     try {
       setLoading(true);
       setError('');
-      await invoke('create_branch', { repoPath, branchName: newBranchName });
+      await api.createBranch(repoPath, newBranchName);
       setNewBranchName('');
       setShowCreateDialog(false);
       await loadBranches();
@@ -80,7 +65,7 @@ export default function BranchManager({ repoPath }: BranchManagerProps) {
 
     try {
       // Check for uncommitted changes before switching
-      const fileStatuses = await invoke<FileStatus[]>('get_repository_status', { repoPath });
+      const fileStatuses = await api.getRepositoryStatus(repoPath);
       if (fileStatuses.length > 0) {
         const hasChanges = fileStatuses.some(f => f.staged || !f.staged);
         if (hasChanges && !confirm(`커밋되지 않은 변경사항이 ${fileStatuses.length}개 있습니다.\n브랜치를 전환하면 변경사항이 손실될 수 있습니다.\n계속하시겠습니까?`)) {
@@ -90,7 +75,7 @@ export default function BranchManager({ repoPath }: BranchManagerProps) {
 
       setLoading(true);
       setError('');
-      await invoke('switch_branch', { repoPath, branchName });
+      await api.switchBranch(repoPath, branchName);
       await loadBranches();
     } catch (err: any) {
       setError(err.toString());
@@ -112,7 +97,7 @@ export default function BranchManager({ repoPath }: BranchManagerProps) {
     try {
       setLoading(true);
       setError('');
-      await invoke('delete_branch', { repoPath, branchName });
+      await api.deleteBranch(repoPath, branchName);
       await loadBranches();
     } catch (err: any) {
       setError(err.toString());
@@ -130,11 +115,7 @@ export default function BranchManager({ repoPath }: BranchManagerProps) {
     try {
       setLoading(true);
       setError('');
-      await invoke('rename_branch', {
-        repoPath,
-        oldName: selectedBranch,
-        newName: renameBranchName,
-      });
+      await api.renameBranch(repoPath, selectedBranch, renameBranchName);
       setShowRenameDialog(false);
       setRenameBranchName('');
       setSelectedBranch('');
@@ -234,7 +215,7 @@ export default function BranchManager({ repoPath }: BranchManagerProps) {
                     <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-500 flex-wrap">
                       <span className="font-mono truncate max-w-[120px]">{branch.commit_sha}</span>
                       <span className="truncate max-w-[150px]">{branch.author}</span>
-                      <span className="flex-shrink-0">{formatTimestamp(branch.timestamp)}</span>
+                      <span className="flex-shrink-0">{formatTimestamp(branch.timestamp ?? 0)}</span>
                     </div>
                   </div>
 

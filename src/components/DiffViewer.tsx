@@ -1,32 +1,7 @@
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
+import type { DiffLine, DiffHunk, ParsedDiff } from '../types/git';
 import ImageDiff from './ImageDiff';
-
-interface DiffLine {
-  line_type: string;
-  old_line_no: number | null;
-  new_line_no: number | null;
-  content: string;
-}
-
-interface DiffHunk {
-  old_start: number;
-  old_lines: number;
-  new_start: number;
-  new_lines: number;
-  header: string;
-  lines: DiffLine[];
-}
-
-interface ParsedDiff {
-  file_path: string;
-  old_path: string;
-  new_path: string;
-  is_binary: boolean;
-  hunks: DiffHunk[];
-  additions: number;
-  deletions: number;
-}
 
 interface DiffViewerProps {
   repoPath: string;
@@ -84,17 +59,11 @@ function TextDiffViewer({
       setError('');
 
       // Get diff text
-      const diff = await invoke<string>('get_file_diff', {
-        repoPath,
-        filePath,
-        staged,
-      });
+      const diff = await api.getFileDiff(repoPath, filePath, staged);
       setDiffText(diff);
 
       // Parse diff
-      const parsed = await invoke<ParsedDiff>('parse_diff', {
-        diffText: diff,
-      });
+      const parsed = await api.parseDiff(diff);
       setParsedDiff(parsed);
     } catch (err: any) {
       setError(err.toString());

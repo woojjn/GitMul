@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
+import type { CherryPickResult } from '../types/git';
 import { X, GitBranch, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
 interface CherryPickDialogProps {
@@ -9,12 +10,6 @@ interface CherryPickDialogProps {
   onClose: () => void;
   onSuccess: () => void;
   onConflict?: () => void;
-}
-
-interface CherryPickResult {
-  success: boolean;
-  conflicts: string[];
-  message: string;
 }
 
 export default function CherryPickDialog({
@@ -35,10 +30,7 @@ export default function CherryPickDialog({
     setResult(null);
 
     try {
-      const res = await invoke<CherryPickResult>('cherry_pick', {
-        repoPath,
-        commitSha
-      });
+      const res = await api.cherryPick(repoPath, commitSha);
 
       setResult(res);
 

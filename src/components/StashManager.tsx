@@ -1,12 +1,7 @@
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
+import type { StashInfo } from '../types/git';
 import { Package, Save, Trash2, RefreshCw, Clock, X } from 'lucide-react';
-
-interface StashInfo {
-  index: number;
-  message: string;
-  oid: string;
-}
 
 interface StashManagerProps {
   repoPath: string;
@@ -31,7 +26,7 @@ export default function StashManager({ repoPath, onClose }: StashManagerProps) {
     try {
       setLoading(true);
       setError('');
-      const list = await invoke<StashInfo[]>('stash_list', { repoPath });
+      const list = await api.stashList(repoPath);
       setStashes(list);
     } catch (err: any) {
       setError(err.toString());
@@ -45,11 +40,7 @@ export default function StashManager({ repoPath, onClose }: StashManagerProps) {
       setLoading(true);
       setError('');
       
-      await invoke('stash_save', {
-        repoPath,
-        message: stashMessage || null,
-        includeUntracked,
-      });
+      await api.stashSave(repoPath, stashMessage || undefined, includeUntracked);
       
       setStashMessage('');
       setIncludeUntracked(false);
@@ -66,7 +57,7 @@ export default function StashManager({ repoPath, onClose }: StashManagerProps) {
     try {
       setLoading(true);
       setError('');
-      await invoke('stash_apply', { repoPath, index });
+      await api.stashApply(repoPath, index);
       alert('Stash가 적용되었습니다');
     } catch (err: any) {
       setError(err.toString());
@@ -80,7 +71,7 @@ export default function StashManager({ repoPath, onClose }: StashManagerProps) {
     try {
       setLoading(true);
       setError('');
-      await invoke('stash_pop', { repoPath, index });
+      await api.stashPop(repoPath, index);
       await loadStashes();
       alert('Stash가 적용되고 제거되었습니다');
     } catch (err: any) {
@@ -99,7 +90,7 @@ export default function StashManager({ repoPath, onClose }: StashManagerProps) {
     try {
       setLoading(true);
       setError('');
-      await invoke('stash_drop', { repoPath, index });
+      await api.stashDrop(repoPath, index);
       await loadStashes();
     } catch (err: any) {
       setError(err.toString());

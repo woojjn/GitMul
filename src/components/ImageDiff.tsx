@@ -1,25 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
+import type { ImageData, ImageDiffResult } from '../types/git';
 
 // ==========================================
 // Types
 // ==========================================
-
-interface ImageData {
-  data: string;       // Base64-encoded
-  mime_type: string;
-  size: number;
-  width: number;
-  height: number;
-  format: string;
-}
-
-interface ImageDiffResult {
-  old_image: ImageData | null;
-  new_image: ImageData | null;
-  is_image: boolean;
-  file_path: string;
-}
 
 type ImageDiffViewMode = 'side-by-side' | 'onion-skin' | 'swipe';
 
@@ -152,11 +137,7 @@ export default function ImageDiff({ repoPath, filePath, staged, onClose }: Image
     try {
       setLoading(true);
       setError('');
-      const result = await invoke<ImageDiffResult>('get_image_diff', {
-        repoPath,
-        filePath,
-        staged,
-      });
+      const result = await api.getImageDiff(repoPath, filePath, staged);
       setDiffResult(result);
     } catch (err: any) {
       setError(err.toString());

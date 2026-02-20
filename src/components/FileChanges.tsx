@@ -1,10 +1,5 @@
 import { FileText, FilePlus, FileX, RefreshCw, Plus, Minus, Eye } from 'lucide-react';
-
-interface FileStatus {
-  path: string;
-  status: string;
-  staged: boolean;
-}
+import type { FileStatus } from '../types/git';
 
 interface FileChangesProps {
   files: FileStatus[];

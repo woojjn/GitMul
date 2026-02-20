@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
+import type { TagInfo } from '../types/git';
 import { Tag, Plus, Trash2, Upload, X } from 'lucide-react';
-
-interface TagInfo {
-  name: string;
-  target: string;
-  message: string | null;
-  tagger: string | null;
-  date: number | null;
-}
 
 interface TagManagerProps {
   repoPath: string;
@@ -31,7 +24,7 @@ const TagManager: React.FC<TagManagerProps> = ({ repoPath, onClose }) => {
   const loadTags = async () => {
     try {
       setLoading(true);
-      const result = await invoke<TagInfo[]>('list_tags', { repoPath });
+      const result = await api.listTags(repoPath);
       setTags(result);
       setError('');
     } catch (err) {
@@ -50,18 +43,9 @@ const TagManager: React.FC<TagManagerProps> = ({ repoPath, onClose }) => {
     try {
       setLoading(true);
       if (isAnnotated) {
-        await invoke('create_annotated_tag', {
-          repoPath,
-          tagName: newTagName,
-          message: newTagMessage || newTagName,
-          target: null,
-        });
+        await api.createAnnotatedTag(repoPath, newTagName, newTagMessage || newTagName);
       } else {
-        await invoke('create_tag', {
-          repoPath,
-          tagName: newTagName,
-          target: null,
-        });
+        await api.createTag(repoPath, newTagName);
       }
       setNewTagName('');
       setNewTagMessage('');
@@ -79,7 +63,7 @@ const TagManager: React.FC<TagManagerProps> = ({ repoPath, onClose }) => {
 
     try {
       setLoading(true);
-      await invoke('delete_tag', { repoPath, tagName });
+      await api.deleteTag(repoPath, tagName);
       await loadTags();
     } catch (err) {
       setError(String(err));
@@ -94,7 +78,7 @@ const TagManager: React.FC<TagManagerProps> = ({ repoPath, onClose }) => {
 
     try {
       setLoading(true);
-      await invoke('push_tag', { repoPath, remoteName, tagName });
+      await api.pushTag(repoPath, remoteName, tagName);
       alert(`태그 "${tagName}"이 ${remoteName}에 푸시되었습니다`);
     } catch (err) {
       setError(String(err));

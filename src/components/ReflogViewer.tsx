@@ -1,15 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
+import type { ReflogEntry } from '../types/git';
 import { RotateCcw, X, AlertCircle, CheckCircle } from 'lucide-react';
-
-interface ReflogEntry {
-  index: number;
-  old_oid: string;
-  new_oid: string;
-  message: string;
-  committer: string;
-  timestamp: number;
-}
 
 interface ReflogViewerProps {
   repoPath: string;
@@ -28,11 +20,7 @@ const ReflogViewer: React.FC<ReflogViewerProps> = ({ repoPath, onClose }) => {
   const loadReflog = async () => {
     try {
       setLoading(true);
-      const result = await invoke<ReflogEntry[]>('get_reflog', {
-        repoPath,
-        refName: 'HEAD',
-        limit: 50,
-      });
+      const result = await api.getReflog(repoPath, 'HEAD', 50);
       setReflog(result);
       setError('');
     } catch (err) {
@@ -53,11 +41,7 @@ const ReflogViewer: React.FC<ReflogViewerProps> = ({ repoPath, onClose }) => {
 
     try {
       setLoading(true);
-      await invoke('reset_to_reflog', {
-        repoPath,
-        refName: entry.new_oid,
-        resetType,
-      });
+      await api.resetToReflog(repoPath, entry.new_oid, resetType);
       alert('리셋이 완료되었습니다');
       await loadReflog();
     } catch (err) {

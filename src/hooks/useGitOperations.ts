@@ -1,13 +1,10 @@
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
 import type { Tab } from '../types/tab';
 
 /**
  * Git Operations Hook
- * 
- * Handles all git-related operations:
- * - Staging/unstaging files
- * - Creating/amending commits
- * 
+ *
+ * Handles staging/unstaging files and creating/amending commits.
  * All operations automatically refresh the repository after completion.
  */
 
@@ -24,51 +21,33 @@ export function useGitOperations({
   onSuccess,
   onError,
 }: UseGitOperationsParams) {
-  
-  /**
-   * Stage a single file
-   */
+  /** Stage a single file. */
   const stageFile = async (path: string) => {
     if (!activeTab?.dataState.currentRepo) return;
-    
     try {
-      await invoke('stage_file', {
-        repoPath: activeTab.dataState.currentRepo.path,
-        path,
-      });
+      await api.stageFile(activeTab.dataState.currentRepo.path, path);
       await refreshRepository();
     } catch (error) {
       onError(`파일 스테이징 실패: ${error}`);
     }
   };
 
-  /**
-   * Unstage a single file
-   */
+  /** Unstage a single file. */
   const unstageFile = async (path: string) => {
     if (!activeTab?.dataState.currentRepo) return;
-    
     try {
-      await invoke('unstage_file', {
-        repoPath: activeTab.dataState.currentRepo.path,
-        path,
-      });
+      await api.unstageFile(activeTab.dataState.currentRepo.path, path);
       await refreshRepository();
     } catch (error) {
       onError(`파일 언스테이징 실패: ${error}`);
     }
   };
 
-  /**
-   * Stage all modified files
-   */
+  /** Stage all modified files. */
   const stageAll = async () => {
     if (!activeTab?.dataState.currentRepo) return;
-    
     try {
-      await invoke('stage_all', {
-        repoPath: activeTab.dataState.currentRepo.path,
-      });
+      await api.stageAll(activeTab.dataState.currentRepo.path);
       await refreshRepository();
       onSuccess('모든 파일 스테이징 완료');
     } catch (error) {
@@ -76,23 +55,14 @@ export function useGitOperations({
     }
   };
 
-  /**
-   * Create a new commit or amend the last commit
-   */
-  const commit = async (message: string, amend: boolean = false) => {
+  /** Create a new commit or amend the last commit. */
+  const commit = async (message: string, amend = false) => {
     if (!activeTab?.dataState.currentRepo) return;
-    
     try {
       if (amend) {
-        await invoke('amend_commit', {
-          repoPath: activeTab.dataState.currentRepo.path,
-          message,
-        });
+        await api.amendCommit(activeTab.dataState.currentRepo.path, message);
       } else {
-        await invoke('create_commit', {
-          repoPath: activeTab.dataState.currentRepo.path,
-          message,
-        });
+        await api.createCommit(activeTab.dataState.currentRepo.path, message);
       }
       await refreshRepository();
       onSuccess(amend ? '커밋 수정 완료' : '커밋 생성 완료');
@@ -101,12 +71,7 @@ export function useGitOperations({
     }
   };
 
-  return {
-    stageFile,
-    unstageFile,
-    stageAll,
-    commit,
-  };
+  return { stageFile, unstageFile, stageAll, commit };
 }
 
 export type GitOperations = ReturnType<typeof useGitOperations>;

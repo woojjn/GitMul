@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
 import { GitBranch, X, AlertTriangle, CheckCircle, GitMerge, Info } from 'lucide-react';
 
 interface MergeDialogProps {
@@ -35,23 +35,16 @@ const MergeDialog: React.FC<MergeDialogProps> = ({
       setError('');
       
       // Check if merge is possible
-      const canMerge = await invoke<boolean>('can_merge', {
-        repoPath,
-        sourceBranch: selectedBranch,
-      });
+      const canMergeResult = await api.canMerge(repoPath, selectedBranch);
 
-      if (!canMerge) {
+      if (!canMergeResult) {
         setError('이 브랜치는 현재 병합할 수 없습니다. 변경사항을 먼저 커밋하거나 Stash하세요.');
         setLoading(false);
         return;
       }
 
       // Perform merge
-      const mergeResult = await invoke<string>('merge_branch', {
-        repoPath,
-        sourceBranch: selectedBranch,
-        noFastForward: false,
-      });
+      const mergeResult = await api.mergeBranch(repoPath, selectedBranch);
 
       // merge_branch returns a string, not an object
       setResult({ success: true, message: mergeResult as string, conflicts: [] });

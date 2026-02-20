@@ -1,29 +1,7 @@
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
+import type { RemoteInfo, RemoteBranchInfo, SyncProgress } from '../types/git';
 import { Cloud, CloudOff, Download, Upload, RefreshCw, Plus, Trash2, Check, X } from 'lucide-react';
-
-interface RemoteInfo {
-  name: string;
-  url: string;
-  fetch_url: string;
-  push_url: string;
-}
-
-interface RemoteBranchInfo {
-  name: string;
-  full_name: string;
-  commit_sha: string;
-  commit_message: string;
-  is_head: boolean;
-}
-
-interface SyncProgress {
-  phase: string;
-  current: number;
-  total: number;
-  bytes: number;
-  message: string;
-}
 
 interface RemoteManagerProps {
   repoPath: string;
@@ -61,7 +39,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
     if (progress && progress.phase !== 'idle') {
       const interval = setInterval(async () => {
         try {
-          const newProgress = await invoke<SyncProgress>('get_sync_progress', { repoPath });
+          const newProgress = await api.getSyncProgress(repoPath);
           setProgress(newProgress);
         } catch (err) {
           console.error('Failed to get progress:', err);
@@ -75,7 +53,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
     try {
       setLoading(true);
       setError('');
-      const remoteList = await invoke<RemoteInfo[]>('list_remotes', { repoPath });
+      const remoteList = await api.listRemotes(repoPath);
       setRemotes(remoteList);
       
       if (remoteList.length > 0 && !selectedRemote) {
@@ -90,10 +68,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
 
   const loadRemoteBranches = async (remoteName: string) => {
     try {
-      const branches = await invoke<RemoteBranchInfo[]>('get_remote_branches', {
-        repoPath,
-        remoteName,
-      });
+      const branches = await api.getRemoteBranches(repoPath, remoteName);
       setRemoteBranches(branches);
     } catch (err: any) {
       console.error('Failed to load remote branches:', err);
@@ -109,11 +84,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
     try {
       setLoading(true);
       setError('');
-      await invoke('add_remote', {
-        repoPath,
-        name: newRemoteName,
-        url: newRemoteUrl,
-      });
+      await api.addRemote(repoPath, newRemoteName, newRemoteUrl);
       setNewRemoteName('');
       setNewRemoteUrl('');
       setShowAddRemote(false);
@@ -133,7 +104,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
     try {
       setLoading(true);
       setError('');
-      await invoke('remove_remote', { repoPath, name: remoteName });
+      await api.removeRemote(repoPath, remoteName);
       await loadRemotes();
       if (selectedRemote === remoteName) {
         setSelectedRemote(remotes.length > 1 ? remotes[0].name : '');
@@ -153,10 +124,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
       setError('');
       setProgress({ phase: 'fetching', current: 0, total: 0, bytes: 0, message: 'Fetching...' });
       
-      const result = await invoke<string>('fetch_remote', {
-        repoPath,
-        remoteName: selectedRemote,
-      });
+      const result = await api.fetchRemote(repoPath, selectedRemote);
       
       setProgress({ phase: 'idle', current: 0, total: 0, bytes: 0, message: result });
       await loadRemoteBranches(selectedRemote);
@@ -176,11 +144,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
       setError('');
       setProgress({ phase: 'pulling', current: 0, total: 0, bytes: 0, message: 'Pulling...' });
       
-      const result = await invoke<string>('pull_changes', {
-        repoPath,
-        remoteName: selectedRemote,
-        branchName: currentBranch,
-      });
+      const result = await api.pullChanges(repoPath, selectedRemote, currentBranch);
       
       setProgress({ phase: 'idle', current: 0, total: 0, bytes: 0, message: result });
       onSuccess?.(result);
@@ -206,12 +170,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
       setError('');
       setProgress({ phase: 'pushing', current: 0, total: 0, bytes: 0, message: 'Pushing...' });
       
-      const result = await invoke<string>('push_changes', {
-        repoPath,
-        remoteName: selectedRemote,
-        branchName: currentBranch,
-        force,
-      });
+      const result = await api.pushChanges(repoPath, selectedRemote, currentBranch, force);
       
       setProgress({ phase: 'idle', current: 0, total: 0, bytes: 0, message: result });
       onSuccess?.(result);
