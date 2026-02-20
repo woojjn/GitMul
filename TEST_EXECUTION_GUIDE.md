@@ -41,7 +41,7 @@ test-korean.bat
 
 ```bash
 # 프로젝트 디렉토리로 이동
-cd gitflow-prototype/src-tauri
+cd gitmul-prototype/src-tauri
 
 # 모든 테스트 실행
 cargo test --all-features -- --test-threads=1 --nocapture
@@ -64,7 +64,7 @@ cargo test korean_encoding_tests
 
 ```
 ====================================
-🧪 GitFlow 한글 인코딩 테스트
+🧪 GitMul 한글 인코딩 테스트
 ====================================
 
 📋 Git 설정 확인...

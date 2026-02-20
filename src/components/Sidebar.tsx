@@ -13,7 +13,7 @@ export default function Sidebar({ recentRepos, currentRepo, onSelectRepo }: Side
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
           <GitBranch size={20} />
-          GitFlow
+          GitMul
         </h2>
       </div>
 

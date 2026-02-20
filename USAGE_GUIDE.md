@@ -1,4 +1,4 @@
-# 🎯 GitFlow 사용 가이드 - Stage/Unstage & Commit
+# 🎯 GitMul 사용 가이드 - Stage/Unstage & Commit
 
 ## 📦 새로운 기능 v0.2.0
 
@@ -123,7 +123,7 @@ Stage/Unstage와 커밋 생성 기능이 추가되었습니다!
 # 1. 파일 수정
 echo "new code" >> index.js
 
-# 2. GitFlow에서 확인
+# 2. GitMul에서 확인
 # - Unstaged에 index.js 표시됨
 
 # 3. Stage
@@ -248,7 +248,7 @@ asdfasdf
 **A:** Unstaged 파일은 커밋되지 않습니다. Stage하지 않은 파일만 남습니다.
 
 ### Q: 한글 파일명이 깨져요
-**A:** GitFlow는 자동으로 UTF-8 설정을 적용합니다. 
+**A:** GitMul는 자동으로 UTF-8 설정을 적용합니다. 
       만약 문제가 있다면 수동으로:
 ```bash
 git config --global core.quotepath false

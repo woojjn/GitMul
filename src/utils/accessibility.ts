@@ -21,7 +21,7 @@ export const DEFAULT_ACCESSIBILITY_SETTINGS: AccessibilitySettings = {
   reducedMotion: false,
 };
 
-const STORAGE_KEY = 'gitflow-accessibility-settings';
+const STORAGE_KEY = 'gitmul-accessibility-settings';
 
 export function getAccessibilitySettings(): AccessibilitySettings {
   try {

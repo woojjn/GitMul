@@ -1,4 +1,4 @@
-# GitFlow Prototype - Fork-like Git GUI
+# GitMul Prototype - Fork-like Git GUI
 
 한글을 완벽하게 지원하는 Fork 스타일 Git GUI 프로토타입입니다.
 
@@ -97,7 +97,7 @@ npm run tauri build
 ## 📁 프로젝트 구조
 
 ```
-gitflow-prototype/
+gitmul-prototype/
 ├── src/                      # Frontend (React)
 │   ├── components/
 │   │   ├── Sidebar.tsx       # 레포 목록 사이드바
@@ -123,7 +123,7 @@ gitflow-prototype/
 
 ### Fork와 비교
 
-| 항목 | GitFlow (Tauri) | Fork | Electron |
+| 항목 | GitMul (Tauri) | Fork | Electron |
 |-----|----------------|------|----------|
 | 번들 크기 | ~10MB | ~20MB | ~150MB |
 | 메모리 사용 | ~80MB | ~50MB | ~300MB |
@@ -191,7 +191,7 @@ echo "변경된 내용" >> README.md
 echo "새로운 파일" > 새파일.txt
 echo "한글파일명.js" > 한글파일명.js
 
-# GitFlow에서 test-repo 폴더 열기
+# GitMul에서 test-repo 폴더 열기
 # 1. 변경사항 확인
 # 2. 파일 위에 호버 → + 버튼 클릭 (Stage)
 # 3. "커밋 (3)" 버튼 클릭

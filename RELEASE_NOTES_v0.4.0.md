@@ -1,4 +1,4 @@
-# 릴리스 노트 - GitFlow v0.4.0 (Branch Management)
+# 릴리스 노트 - GitMul v0.4.0 (Branch Management)
 
 ## 🎯 주요 기능
 
@@ -45,7 +45,7 @@
 | 100개 브랜치 생성 | < 10s | ~8s | ✅ |
 
 **Fork 대비 성능 비교** (추정):
-- GitFlow (Tauri): 브랜치 전환 ~150ms
+- GitMul (Tauri): 브랜치 전환 ~150ms
 - Fork (Native): 브랜치 전환 ~100ms
 - **차이**: +50% (여전히 매우 빠름)
 
@@ -117,7 +117,7 @@ cargo test --release --all-features bench_ -- --test-threads=1 --nocapture
    cd test-repo
    git commit --allow-empty -m "Initial commit"
    
-   # GitFlow에서 브랜치 생성
+   # GitMul에서 브랜치 생성
    # - "feature/test"
    # - "기능/테스트"
    # - "버그수정/한글깨짐"
@@ -134,8 +134,8 @@ cargo test --release --all-features bench_ -- --test-threads=1 --nocapture
    git checkout -b "기능/로그인-개선"
    git checkout -b "feature/한글-지원"
    
-   # GitFlow에서 정상 표시 확인
-   # GitFlow에서 전환/삭제 테스트
+   # GitMul에서 정상 표시 확인
+   # GitMul에서 전환/삭제 테스트
    ```
 
 ## 🎨 UI/UX 개선사항
@@ -221,8 +221,8 @@ cargo test --release --all-features bench_ -- --test-threads=1 --nocapture
 ### 개발 모드
 ```bash
 # 프로젝트 압축 해제
-tar -xzf gitflow-v0.4.0-branch-management.tar.gz
-cd gitflow-prototype
+tar -xzf gitmul-v0.4.0-branch-management.tar.gz
+cd gitmul-prototype
 
 # 의존성 설치
 npm install
@@ -237,9 +237,9 @@ npm run tauri dev
 npm run tauri build
 
 # 결과물 위치
-# - Windows: src-tauri/target/release/gitflow.exe
-# - macOS: src-tauri/target/release/bundle/macos/GitFlow.app
-# - Linux: src-tauri/target/release/gitflow
+# - Windows: src-tauri/target/release/gitmul.exe
+# - macOS: src-tauri/target/release/bundle/macos/GitMul.app
+# - Linux: src-tauri/target/release/gitmul
 ```
 
 ## 🐛 알려진 제한사항
@@ -259,4 +259,4 @@ npm run tauri build
 
 ---
 
-**GitFlow v0.4.0** - Fork-like performance with complete Korean support 🚀
+**GitMul v0.4.0** - Fork-like performance with complete Korean support 🚀

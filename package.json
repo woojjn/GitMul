@@ -1,5 +1,5 @@
 {
-  "name": "gitflow-prototype",
+  "name": "gitmul",
   "version": "0.1.0",
   "description": "Fork-like Git GUI with Korean support",
   "type": "module",

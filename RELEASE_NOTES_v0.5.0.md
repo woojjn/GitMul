@@ -1,4 +1,4 @@
-# 릴리스 노트 - GitFlow v0.5.0 (Diff Viewer)
+# 릴리스 노트 - GitMul v0.5.0 (Diff Viewer)
 
 ## 🎯 주요 기능
 
@@ -51,7 +51,7 @@
 | 뷰 모드 전환 | < 50ms | ~30ms | ✅ |
 
 **Fork 대비 성능 비교** (추정):
-- GitFlow (Tauri): Diff 표시 ~120ms
+- GitMul (Tauri): Diff 표시 ~120ms
 - Fork (Native): Diff 표시 ~80ms
 - **차이**: +50% (여전히 매우 빠름)
 
@@ -151,7 +151,7 @@ cargo test --all-features -- --test-threads=1
    
    echo "Line 2" >> test.txt
    
-   # GitFlow에서 test.txt 클릭
+   # GitMul에서 test.txt 클릭
    # Diff 표시 확인
    ```
 
@@ -165,7 +165,7 @@ cargo test --all-features -- --test-threads=1
    # 수정
    echo "새로운 내용" >> 한글파일.txt
    
-   # GitFlow에서 한글파일.txt 클릭
+   # GitMul에서 한글파일.txt 클릭
    # 한글 diff 정상 표시 확인
    ```
 
@@ -256,8 +256,8 @@ cargo test --all-features -- --test-threads=1
 ### 개발 모드
 ```bash
 # 프로젝트 압축 해제
-tar -xzf gitflow-v0.5.0-diff-viewer.tar.gz
-cd gitflow-prototype
+tar -xzf gitmul-v0.5.0-diff-viewer.tar.gz
+cd gitmul-prototype
 
 # 의존성 설치
 npm install
@@ -288,6 +288,6 @@ npm run tauri build
 
 ---
 
-**GitFlow v0.5.0** - Fork-like performance with complete Korean support and beautiful diff viewer 🚀
+**GitMul v0.5.0** - Fork-like performance with complete Korean support and beautiful diff viewer 🚀
 
 **전체 테스트**: 42개 (브랜치 11개 + 한글 18개 + Diff 10개 + 통합 3개) - **100% 통과** ✅

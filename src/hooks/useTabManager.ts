@@ -2,8 +2,8 @@ import { useState, useCallback, useEffect } from 'react';
 import type { Tab, SavedTab, TabUIState, TabDataState } from '../types/tab';
 import { createNewTab, createInitialUIState, createInitialDataState } from '../types/tab';
 
-const STORAGE_KEY = 'gitflow_tabs';
-const ACTIVE_TAB_KEY = 'gitflow_active_tab';
+const STORAGE_KEY = 'gitmul_tabs';
+const ACTIVE_TAB_KEY = 'gitmul_active_tab';
 const MAX_TABS = 10;
 
 /**

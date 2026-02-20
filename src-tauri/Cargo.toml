@@ -1,5 +1,5 @@
 [package]
-name = "gitflow-prototype"
+name = "gitmul"
 version = "0.1.0"
 description = "Fork-like Git GUI with Korean support"
 authors = ["you"]
@@ -26,5 +26,5 @@ serial_test = "3.0"
 custom-protocol = ["tauri/custom-protocol"]
 
 [[bin]]
-name = "gitflow-prototype"
+name = "gitmul"
 path = "src/main.rs"

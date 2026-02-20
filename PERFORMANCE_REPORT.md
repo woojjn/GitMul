@@ -98,7 +98,7 @@
 
 ## Comparison with Fork (Estimated)
 
-| Operation | GitFlow (Tauri) | Fork (Native) | Ratio |
+| Operation | GitMul (Tauri) | Fork (Native) | Ratio |
 |-----------|-----------------|---------------|-------|
 | Branch Create | 88ms | 60ms | 1.47x |
 | Branch Switch | 103ms | 70ms | 1.47x |
@@ -127,7 +127,7 @@
 
 **Comparison**:
 - Fork (Native): ~50-60 MB
-- GitFlow (Tauri): ~80-100 MB
+- GitMul (Tauri): ~80-100 MB
 - GitHub Desktop (Electron): ~300-400 MB
 - GitKraken (Electron): ~400-500 MB
 
@@ -187,7 +187,7 @@
 
 ## Conclusion
 
-**GitFlow v0.4.0** achieves **Fork-like performance** while maintaining:
+**GitMul v0.4.0** achieves **Fork-like performance** while maintaining:
 - ✅ Complete Korean/Unicode support
 - ✅ Cross-platform compatibility
 - ✅ Modern React UI

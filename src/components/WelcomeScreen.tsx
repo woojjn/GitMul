@@ -23,7 +23,7 @@ export default function WelcomeScreen({
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <h1 className="text-xl font-bold flex items-center gap-2">
           <GitBranch size={24} />
-          GitFlow
+          GitMul
         </h1>
         <button
           onClick={onToggleDarkMode}
@@ -38,7 +38,7 @@ export default function WelcomeScreen({
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <FolderOpen size={64} className="mx-auto mb-4 text-gray-400" />
-          <h2 className="text-2xl font-semibold mb-2">Welcome to GitFlow</h2>
+          <h2 className="text-2xl font-semibold mb-2">Welcome to GitMul</h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             레포지토리를 열어서 시작하세요
           </p>
