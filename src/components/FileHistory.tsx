@@ -1,15 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
+import type { FileHistoryEntry } from '../types/git';
 import { History, X, Eye, File } from 'lucide-react';
-
-interface FileHistoryEntry {
-  commit_sha: string;
-  message: string;
-  author: string;
-  date: number;
-  changes: string;
-  old_path: string | null;
-}
 
 interface FileHistoryProps {
   repoPath: string;
@@ -31,11 +23,7 @@ const FileHistory: React.FC<FileHistoryProps> = ({ repoPath, filePath, onClose }
   const loadHistory = async () => {
     try {
       setLoading(true);
-      const result = await invoke<FileHistoryEntry[]>('get_file_history', {
-        repoPath,
-        filePath,
-        limit: 100,
-      });
+      const result = await api.getFileHistory(repoPath, filePath, 100);
       setHistory(result);
       setError('');
     } catch (err) {
@@ -48,11 +36,7 @@ const FileHistory: React.FC<FileHistoryProps> = ({ repoPath, filePath, onClose }
   const handleViewContent = async (commitSha: string) => {
     try {
       setLoading(true);
-      const content = await invoke<string>('get_file_at_commit', {
-        repoPath,
-        commitSha,
-        filePath,
-      });
+      const content = await api.getFileAtCommit(repoPath, commitSha, filePath);
       setViewingContent(content);
       setSelectedCommit(commitSha);
     } catch (err) {

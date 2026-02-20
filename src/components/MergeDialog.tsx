@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
 import { GitBranch, X, AlertTriangle, CheckCircle, GitMerge, Info } from 'lucide-react';
 
 interface MergeDialogProps {
@@ -22,7 +22,7 @@ const MergeDialog: React.FC<MergeDialogProps> = ({
   const [selectedBranch, setSelectedBranch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{ success: boolean; message: string; conflicts: string[] } | null>(null);
 
   const handleMerge = async () => {
     if (!selectedBranch) {
@@ -35,35 +35,29 @@ const MergeDialog: React.FC<MergeDialogProps> = ({
       setError('');
       
       // Check if merge is possible
-      const canMerge = await invoke<boolean>('can_merge', {
-        repoPath,
-        branch: selectedBranch,
-      });
+      const canMergeResult = await api.canMerge(repoPath, selectedBranch);
 
-      if (!canMerge) {
+      if (!canMergeResult) {
         setError('이 브랜치는 현재 병합할 수 없습니다. 변경사항을 먼저 커밋하거나 Stash하세요.');
         setLoading(false);
         return;
       }
 
       // Perform merge
-      const mergeResult = await invoke('merge_branch', {
-        repoPath,
-        branch: selectedBranch,
-        fastForward: true,
-      });
+      const mergeResult = await api.mergeBranch(repoPath, selectedBranch);
 
-      setResult(mergeResult);
+      // merge_branch returns a string, not an object
+      setResult({ success: true, message: mergeResult as string, conflicts: [] });
       
-      if ((mergeResult as any).success) {
-        setTimeout(() => {
-          onSuccess();
-          onClose();
-        }, 2000);
-      } else if ((mergeResult as any).conflicts && (mergeResult as any).conflicts.length > 0) {
-        // Has conflicts - will show in UI, user can proceed to conflict resolver
+      if ((mergeResult as string).includes('conflict')) {
+        // Has conflicts
         setTimeout(() => {
           if (onConflict) onConflict();
+          onClose();
+        }, 2000);
+      } else {
+        setTimeout(() => {
+          onSuccess();
           onClose();
         }, 2000);
       }

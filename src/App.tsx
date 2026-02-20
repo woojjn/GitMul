@@ -23,10 +23,10 @@ import CherryPickDialog from './components/CherryPickDialog';
 import RevertDialog from './components/RevertDialog';
 import WelcomeScreen from './components/WelcomeScreen';
 import Toolbar from './components/Toolbar';
+import ToastContainer from './components/Toast';
 
 // Hooks
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useAccessibility } from './hooks/useAccessibility';
 import { useToast } from './hooks/useToast';
 import { useTabManager } from './hooks/useTabManager';
 import { useRepository } from './hooks/useRepository';
@@ -37,7 +37,10 @@ import type { RecentRepo, RepositoryInfo, CommitInfo, FileStatus, BranchInfo } f
 
 function App() {
   // Global UI State (not tab-specific)
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('gitmul_dark_mode');
+    return saved !== null ? saved === 'true' : true;
+  });
 
   // Tab Management
   const tabManager = useTabManager();
@@ -56,8 +59,7 @@ function App() {
   } = tabManager;
 
   // Toast notifications
-  const { success: showSuccess, error: showError } = useToast();
-  const {} = useAccessibility();
+  const { toasts, removeToast, success: showSuccess, error: showError } = useToast();
 
   // Repository operations
   const { recentRepos, loadRecentRepos, openRepository, openRepositoryPath, refreshRepository } = useRepository({
@@ -86,6 +88,7 @@ function App() {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    localStorage.setItem('gitmul_dark_mode', String(darkMode));
   }, [darkMode]);
 
   // Keyboard shortcuts (global + tab-specific)
@@ -235,127 +238,129 @@ function App() {
             {/* Content area */}
             <div className="flex-1 flex overflow-hidden">
               {dataState.currentRepo ? (
-                <>
-                  {uiState?.showBranchManager && (
-                    <div className="flex-1 overflow-auto">
-                      <BranchManager repoPath={dataState.currentRepo.path} />
-                    </div>
-                  )}
-
-                  {uiState?.showCommitGraph && (
-                    <div className="flex-1 overflow-auto">
-                      <CommitGraph
-                        repoPath={dataState.currentRepo.path}
-                        commits={dataState.commits}
-                      />
-                    </div>
-                  )}
-
-                  {uiState?.showStashManager && (
-                    <div className="flex-1 overflow-auto">
-                      <StashManager
-                        repoPath={dataState.currentRepo.path}
-                        onClose={() => updateTabUIState(activeTabId!, { showStashManager: false })}
-                      />
-                    </div>
-                  )}
-
-                  {uiState?.showTagManager && (
-                    <div className="flex-1 overflow-auto">
-                      <TagManager repoPath={dataState.currentRepo.path} />
-                    </div>
-                  )}
-
-                  {uiState?.showReflogViewer && (
-                    <div className="flex-1 overflow-auto">
-                      <ReflogViewer repoPath={dataState.currentRepo.path} />
-                    </div>
-                  )}
-
-                  {uiState?.showRemoteManager && (
-                    <div className="flex-1 overflow-auto">
-                      <RemoteManager
-                        repoPath={dataState.currentRepo.path}
-                        currentBranch={dataState.currentRepo.current_branch}
-                      />
-                    </div>
-                  )}
-
-                  {uiState?.showConflictResolver && (
-                    <div className="flex-1 overflow-auto">
-                      <ConflictResolver
-                        repoPath={dataState.currentRepo.path}
-                        onClose={() => updateTabUIState(activeTabId!, { showConflictResolver: false })}
-                        onResolved={refreshRepository}
-                      />
-                    </div>
-                  )}
-
-                  {uiState?.fileHistoryPath && (
-                    <div className="flex-1 overflow-auto">
-                      <FileHistory
-                        repoPath={dataState.currentRepo.path}
-                        filePath={uiState.fileHistoryPath}
-                        onClose={() => updateTabUIState(activeTabId!, { fileHistoryPath: null })}
-                      />
-                    </div>
-                  )}
-
-                  {uiState?.selectedFile && (
-                    <div className="flex-1 overflow-auto">
-                      <DiffViewer
-                        repoPath={dataState.currentRepo.path}
-                        filePath={uiState.selectedFile.path}
-                        staged={uiState.selectedFile.staged}
-                        onClose={() => updateTabUIState(activeTabId!, { selectedFile: null })}
-                      />
-                    </div>
-                  )}
-
-                  {!uiState?.showBranchManager &&
-                    !uiState?.showCommitGraph &&
-                    !uiState?.showStashManager &&
-                    !uiState?.showTagManager &&
-                    !uiState?.showReflogViewer &&
-                    !uiState?.showRemoteManager &&
-                    !uiState?.showConflictResolver &&
-                    !uiState?.fileHistoryPath &&
-                    !uiState?.selectedFile && (
-                      <>
-                        <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700">
-                          <CommitHistory
-                            commits={dataState.commits}
-                            onRefresh={refreshRepository}
-                            onCherryPick={(sha, message) => {
-                              updateTabUIState(activeTabId!, {
-                                showCherryPickDialog: true,
-                                cherryPickCommit: { sha, message },
-                              });
-                            }}
-                            onRevert={(sha, message) => {
-                              updateTabUIState(activeTabId!, {
-                                showRevertDialog: true,
-                                revertCommit: { sha, message },
-                              });
-                            }}
-                          />
-                        </div>
-
-                        <div className="w-1/2 flex flex-col">
-                          <FileChanges
-                            files={dataState.fileChanges}
-                            onStage={stageFile}
-                            onUnstage={unstageFile}
-                            onStageAll={stageAll}
-                            onFileClick={(path, staged) =>
-                              updateTabUIState(activeTabId!, { selectedFile: { path, staged } })
-                            }
-                            onRefresh={refreshRepository}
-                          />
-                        </div>
-                      </>
-                    )}
-                </>
+                (() => {
+                  // Determine which panel to show (exclusive — first match wins)
+                  if (uiState?.showBranchManager) {
+                    return (
+                      <div className="flex-1 overflow-auto">
+                        <BranchManager repoPath={dataState.currentRepo.path} />
+                      </div>
+                    );
+                  }
+                  if (uiState?.showCommitGraph) {
+                    return (
+                      <div className="flex-1 overflow-auto">
+                        <CommitGraph
+                          repoPath={dataState.currentRepo.path}
+                          commits={dataState.commits}
+                        />
+                      </div>
+                    );
+                  }
+                  if (uiState?.showStashManager) {
+                    return (
+                      <div className="flex-1 overflow-auto">
+                        <StashManager
+                          repoPath={dataState.currentRepo.path}
+                          onClose={() => updateTabUIState(activeTabId!, { showStashManager: false })}
+                        />
+                      </div>
+                    );
+                  }
+                  if (uiState?.showTagManager) {
+                    return (
+                      <div className="flex-1 overflow-auto">
+                        <TagManager repoPath={dataState.currentRepo.path} />
+                      </div>
+                    );
+                  }
+                  if (uiState?.showReflogViewer) {
+                    return (
+                      <div className="flex-1 overflow-auto">
+                        <ReflogViewer repoPath={dataState.currentRepo.path} />
+                      </div>
+                    );
+                  }
+                  if (uiState?.showRemoteManager) {
+                    return (
+                      <div className="flex-1 overflow-auto">
+                        <RemoteManager
+                          repoPath={dataState.currentRepo.path}
+                          currentBranch={dataState.currentRepo.current_branch}
+                        />
+                      </div>
+                    );
+                  }
+                  if (uiState?.showConflictResolver) {
+                    return (
+                      <div className="flex-1 overflow-auto">
+                        <ConflictResolver
+                          repoPath={dataState.currentRepo.path}
+                          onClose={() => updateTabUIState(activeTabId!, { showConflictResolver: false })}
+                          onResolved={refreshRepository}
+                        />
+                      </div>
+                    );
+                  }
+                  if (uiState?.fileHistoryPath) {
+                    return (
+                      <div className="flex-1 overflow-auto">
+                        <FileHistory
+                          repoPath={dataState.currentRepo.path}
+                          filePath={uiState.fileHistoryPath}
+                          onClose={() => updateTabUIState(activeTabId!, { fileHistoryPath: null })}
+                        />
+                      </div>
+                    );
+                  }
+                  if (uiState?.selectedFile) {
+                    return (
+                      <div className="flex-1 overflow-auto">
+                        <DiffViewer
+                          repoPath={dataState.currentRepo.path}
+                          filePath={uiState.selectedFile.path}
+                          staged={uiState.selectedFile.staged}
+                          onClose={() => updateTabUIState(activeTabId!, { selectedFile: null })}
+                        />
+                      </div>
+                    );
+                  }
+                  // Default: commit history + file changes
+                  return (
+                    <>
+                      <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700">
+                        <CommitHistory
+                          commits={dataState.commits}
+                          onRefresh={refreshRepository}
+                          onCherryPick={(sha, message) => {
+                            updateTabUIState(activeTabId!, {
+                              showCherryPickDialog: true,
+                              cherryPickCommit: { sha, message },
+                            });
+                          }}
+                          onRevert={(sha, message) => {
+                            updateTabUIState(activeTabId!, {
+                              showRevertDialog: true,
+                              revertCommit: { sha, message },
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="w-1/2 flex flex-col">
+                        <FileChanges
+                          files={dataState.fileChanges}
+                          onStage={stageFile}
+                          onUnstage={unstageFile}
+                          onStageAll={stageAll}
+                          onFileClick={(path, staged) =>
+                            updateTabUIState(activeTabId!, { selectedFile: { path, staged } })
+                          }
+                          onRefresh={refreshRepository}
+                        />
+                      </div>
+                    </>
+                  );
+                })()
               ) : (
                 <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
                   <div className="text-center">
@@ -455,6 +460,9 @@ function App() {
         isOpen={uiState?.showAccessibilitySettings || false}
         onClose={() => updateTabUIState(activeTabId!, { showAccessibilitySettings: false })}
       />
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 }

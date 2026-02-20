@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
 
 interface CommitDialogProps {
   isOpen: boolean;
@@ -24,7 +24,7 @@ export default function CommitDialog({
   useEffect(() => {
     if (isOpen && repoPath) {
       // Load last commit message for amend
-      invoke<string>('get_last_commit_message', { repoPath })
+      api.getLastCommitMessage(repoPath)
         .then(msg => setLastCommitMessage(msg))
         .catch(() => setLastCommitMessage(''));
     }

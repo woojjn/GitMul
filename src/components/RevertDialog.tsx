@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
+import type { RevertResult } from '../types/git';
 import { X, Undo2, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
 interface RevertDialogProps {
@@ -9,12 +10,6 @@ interface RevertDialogProps {
   onClose: () => void;
   onSuccess: () => void;
   onConflict?: () => void;
-}
-
-interface RevertResult {
-  success: boolean;
-  conflicts: string[];
-  message: string;
 }
 
 export default function RevertDialog({
@@ -35,10 +30,7 @@ export default function RevertDialog({
     setResult(null);
 
     try {
-      const res = await invoke<RevertResult>('revert_commit', {
-        repoPath,
-        commitSha
-      });
+      const res = await api.revertCommit(repoPath, commitSha);
 
       setResult(res);
 

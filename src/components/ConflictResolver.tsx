@@ -1,22 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import * as api from '../services/api';
+import type { ConflictFile, ConflictInfo, ResolutionChoice } from '../types/git';
 import { 
   AlertCircle, CheckCircle, X, ChevronLeft, ChevronRight,
   FileWarning, GitMerge, Undo
 } from 'lucide-react';
-
-interface ConflictFile {
-  path: string;
-  our_content: string | null;
-  their_content: string | null;
-  base_content: string | null;
-}
-
-interface ConflictInfo {
-  files: ConflictFile[];
-  merge_head: string | null;
-  merge_msg: string | null;
-}
 
 interface ConflictResolverProps {
   repoPath: string;
@@ -24,7 +12,6 @@ interface ConflictResolverProps {
   onResolved: () => void;
 }
 
-type ResolutionChoice = 'ours' | 'theirs' | 'both' | 'manual';
 
 const ConflictResolver: React.FC<ConflictResolverProps> = ({
   repoPath,
@@ -54,7 +41,7 @@ const ConflictResolver: React.FC<ConflictResolverProps> = ({
   const loadConflicts = async () => {
     try {
       setLoading(true);
-      const result = await invoke<ConflictInfo>('get_conflicts', { repoPath });
+      const result = await api.getConflicts(repoPath);
       setConflicts(result);
       if (result.files.length > 0) {
         initializeContent(result.files[0]);
@@ -109,19 +96,15 @@ const ConflictResolver: React.FC<ConflictResolverProps> = ({
       setResolving(true);
       setError('');
 
-      await invoke('resolve_conflict', {
-        repoPath,
-        filePath: currentFile.path,
-        resolution: resolution === 'manual' ? 'manual' : resolution,
-        content: editedContent,
-      });
+      await api.resolveConflict(repoPath, currentFile.path, resolution === 'manual' ? 'manual' : resolution, editedContent,
+      );
 
       // Move to next conflict or finish
       if (currentIndex < conflicts.files.length - 1) {
         setCurrentIndex(currentIndex + 1);
       } else {
         // All conflicts resolved
-        const updatedConflicts = await invoke<ConflictInfo>('get_conflicts', { repoPath });
+        const updatedConflicts = await api.getConflicts(repoPath);
         if (updatedConflicts.files.length === 0) {
           onResolved();
         } else {
@@ -141,7 +124,7 @@ const ConflictResolver: React.FC<ConflictResolverProps> = ({
 
     try {
       setLoading(true);
-      await invoke('abort_merge', { repoPath });
+      await api.abortMerge(repoPath);
       onClose();
     } catch (err) {
       setError(String(err));
