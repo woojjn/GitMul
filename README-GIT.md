@@ -8,6 +8,8 @@
 
 **GitMul** - Modern Git GUI Tool built with Tauri, React, and TypeScript
 
+> **이름의 의미**: GitMul = Git + Multiple (다중 탭, 다중 레포지토리 지원을 강조)
+
 ---
 
 ## ✨ Features
@@ -26,9 +28,14 @@
 
 - **📑 Multiple Tabs** (Phase 3)
   - Up to 10 concurrent repositories
-  - Tab state persistence
+  - Tab state persistence (localStorage)
   - Context menu (close, close others, close all)
   - Keyboard shortcuts (Ctrl+Tab, Ctrl+W)
+
+- **🏗️ Code Refactoring**
+  - App.tsx: 768 → 462 lines (-40%)
+  - Custom hooks: useRepository, useGitOperations
+  - Component extraction: WelcomeScreen, Toolbar
 
 ### ⏳ **In Progress**
 
@@ -56,10 +63,11 @@
 ```
 App.tsx:                462 lines (-40% from 768)
 TypeScript Errors:      0
-Build Size:             283.80 kB (gzipped: 74.52 kB)
+Build Size:             283.79 kB (gzipped: 74.52 kB)
 Components:             20+
 Custom Hooks:           5
 Tests:                  Passing
+Git Commits:            2
 ```
 
 ---
@@ -149,7 +157,7 @@ App
 
 ### State Management
 
-- **Tab State**: `useTabManager` hook
+- **Tab State**: `useTabManager` hook (localStorage: `gitmul_tabs`)
 - **Repository**: `useRepository` hook  
 - **Git Operations**: `useGitOperations` hook
 - **UI State**: Per-tab state (isolated)
@@ -225,6 +233,7 @@ cd src-tauri && cargo test
 - [x] Word-level Diff
 - [x] Multiple Tabs
 - [x] Code Refactoring
+- [x] Project rename (GitFlow → GitMul)
 - [ ] Image Diff
 
 ### v1.7 (Future)
