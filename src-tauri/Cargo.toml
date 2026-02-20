@@ -17,6 +17,7 @@ chrono = "0.4"
 tokio = { version = "1", features = ["full"] }
 unicode-normalization = "0.1"
 lazy_static = "1.4"
+base64 = "0.22"
 
 [dev-dependencies]
 tempfile = "3.8"

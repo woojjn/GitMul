@@ -36,7 +36,10 @@ use commands::
         get_commit_diff,
         parse_diff,
         get_file_content,
-        get_diff_stats
+        get_diff_stats,
+        check_is_image,
+        get_image_diff,
+        get_image_at_commit
     },
     remote::{
         list_remotes,
@@ -84,6 +87,11 @@ fn main() {
             parse_diff,
             get_file_content,
             get_diff_stats,
+            // v1.6 Image Diff
+            check_is_image,
+            get_image_diff,
+            get_image_at_commit,
+            // Remote
             list_remotes,
             add_remote,
             remove_remote,
@@ -131,12 +139,6 @@ fn main() {
             // v1.5 Reflog
             get_reflog,
             reset_to_reflog
-        ])
-            pull_changes,
-            push_changes,
-            get_remote_branches,
-            get_sync_progress,
-            check_remote_connection
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

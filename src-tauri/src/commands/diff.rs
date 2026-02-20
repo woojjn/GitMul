@@ -1,6 +1,7 @@
 use git2::{Diff, DiffOptions, Repository, Oid};
 use serde::{Deserialize, Serialize};
 use unicode_normalization::UnicodeNormalization;
+use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiffLine {
@@ -330,4 +331,339 @@ pub struct DiffStat {
     pub additions: u32,
     pub deletions: u32,
     pub is_binary: bool,
+}
+
+// ==========================================
+// Phase 4: Image Diff Support
+// ==========================================
+
+/// Image metadata and Base64-encoded content
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ImageData {
+    /// Base64-encoded image data
+    pub data: String,
+    /// MIME type (e.g., "image/png", "image/jpeg")
+    pub mime_type: String,
+    /// File size in bytes
+    pub size: u64,
+    /// Image width in pixels (0 if not determinable)
+    pub width: u32,
+    /// Image height in pixels (0 if not determinable)
+    pub height: u32,
+    /// File format (e.g., "PNG", "JPEG", "GIF", "SVG", "WebP")
+    pub format: String,
+}
+
+/// Result of image diff comparison
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ImageDiffResult {
+    /// Old (previous) image data (None if file is newly added)
+    pub old_image: Option<ImageData>,
+    /// New (current) image data (None if file is deleted)
+    pub new_image: Option<ImageData>,
+    /// Whether the file is recognized as an image
+    pub is_image: bool,
+    /// File path
+    pub file_path: String,
+}
+
+/// Known image file extensions
+const IMAGE_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "tiff", "tif",
+];
+
+/// Check if a file path is an image based on extension
+fn is_image_file(path: &str) -> bool {
+    let path_lower = path.to_lowercase();
+    IMAGE_EXTENSIONS.iter().any(|ext| path_lower.ends_with(&format!(".{}", ext)))
+}
+
+/// Get MIME type from file extension
+fn get_mime_type(path: &str) -> String {
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    
+    match ext.as_str() {
+        "png" => "image/png".to_string(),
+        "jpg" | "jpeg" => "image/jpeg".to_string(),
+        "gif" => "image/gif".to_string(),
+        "svg" => "image/svg+xml".to_string(),
+        "webp" => "image/webp".to_string(),
+        "bmp" => "image/bmp".to_string(),
+        "ico" => "image/x-icon".to_string(),
+        "tiff" | "tif" => "image/tiff".to_string(),
+        _ => "application/octet-stream".to_string(),
+    }
+}
+
+/// Get format name from file extension
+fn get_format_name(path: &str) -> String {
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    
+    match ext.as_str() {
+        "png" => "PNG".to_string(),
+        "jpg" | "jpeg" => "JPEG".to_string(),
+        "gif" => "GIF".to_string(),
+        "svg" => "SVG".to_string(),
+        "webp" => "WebP".to_string(),
+        "bmp" => "BMP".to_string(),
+        "ico" => "ICO".to_string(),
+        "tiff" | "tif" => "TIFF".to_string(),
+        _ => ext.to_uppercase(),
+    }
+}
+
+/// Parse PNG dimensions from raw bytes (IHDR chunk)
+fn parse_png_dimensions(data: &[u8]) -> (u32, u32) {
+    // PNG signature: 8 bytes, then IHDR chunk starts at byte 8
+    // IHDR: 4 bytes length + 4 bytes "IHDR" + 4 bytes width + 4 bytes height
+    if data.len() >= 24 && &data[0..8] == b"\x89PNG\r\n\x1a\n" {
+        let width = u32::from_be_bytes([data[16], data[17], data[18], data[19]]);
+        let height = u32::from_be_bytes([data[20], data[21], data[22], data[23]]);
+        return (width, height);
+    }
+    (0, 0)
+}
+
+/// Parse JPEG dimensions from raw bytes (SOF0/SOF2 marker)
+fn parse_jpeg_dimensions(data: &[u8]) -> (u32, u32) {
+    if data.len() < 4 || data[0] != 0xFF || data[1] != 0xD8 {
+        return (0, 0);
+    }
+    
+    let mut i = 2;
+    while i + 1 < data.len() {
+        if data[i] != 0xFF {
+            i += 1;
+            continue;
+        }
+        let marker = data[i + 1];
+        
+        // SOF0 (0xC0) or SOF2 (0xC2) - Start of Frame
+        if marker == 0xC0 || marker == 0xC2 {
+            if i + 9 < data.len() {
+                let height = u16::from_be_bytes([data[i + 5], data[i + 6]]) as u32;
+                let width = u16::from_be_bytes([data[i + 7], data[i + 8]]) as u32;
+                return (width, height);
+            }
+        }
+        
+        // Skip to next marker
+        if i + 3 < data.len() {
+            let len = u16::from_be_bytes([data[i + 2], data[i + 3]]) as usize;
+            i += 2 + len;
+        } else {
+            break;
+        }
+    }
+    (0, 0)
+}
+
+/// Parse GIF dimensions from raw bytes
+fn parse_gif_dimensions(data: &[u8]) -> (u32, u32) {
+    if data.len() >= 10 && (data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a")) {
+        let width = u16::from_le_bytes([data[6], data[7]]) as u32;
+        let height = u16::from_le_bytes([data[8], data[9]]) as u32;
+        return (width, height);
+    }
+    (0, 0)
+}
+
+/// Parse WebP dimensions from raw bytes
+fn parse_webp_dimensions(data: &[u8]) -> (u32, u32) {
+    if data.len() >= 30 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
+        // VP8 lossy
+        if &data[12..16] == b"VP8 " && data.len() >= 30 {
+            if data[23] == 0x9D && data[24] == 0x01 && data[25] == 0x2A {
+                let width = u16::from_le_bytes([data[26], data[27]]) as u32 & 0x3FFF;
+                let height = u16::from_le_bytes([data[28], data[29]]) as u32 & 0x3FFF;
+                return (width, height);
+            }
+        }
+        // VP8L lossless
+        if &data[12..16] == b"VP8L" && data.len() >= 25 {
+            let bits = u32::from_le_bytes([data[21], data[22], data[23], data[24]]);
+            let width = (bits & 0x3FFF) + 1;
+            let height = ((bits >> 14) & 0x3FFF) + 1;
+            return (width, height);
+        }
+    }
+    (0, 0)
+}
+
+/// Try to parse image dimensions from raw bytes based on file format
+fn parse_image_dimensions(data: &[u8], format: &str) -> (u32, u32) {
+    match format {
+        "PNG" => parse_png_dimensions(data),
+        "JPEG" => parse_jpeg_dimensions(data),
+        "GIF" => parse_gif_dimensions(data),
+        "WebP" => parse_webp_dimensions(data),
+        _ => (0, 0),
+    }
+}
+
+/// Build ImageData from raw bytes and file path
+fn build_image_data(data: &[u8], file_path: &str) -> ImageData {
+    use base64::Engine;
+    
+    let mime_type = get_mime_type(file_path);
+    let format = get_format_name(file_path);
+    let (width, height) = parse_image_dimensions(data, &format);
+    
+    // For SVG, try to get dimensions from the SVG content
+    let (width, height) = if format == "SVG" && width == 0 && height == 0 {
+        parse_svg_dimensions(data)
+    } else {
+        (width, height)
+    };
+    
+    let base64_data = base64::engine::general_purpose::STANDARD.encode(data);
+    
+    ImageData {
+        data: base64_data,
+        mime_type,
+        size: data.len() as u64,
+        width,
+        height,
+        format,
+    }
+}
+
+/// Try to parse SVG dimensions from SVG XML content
+fn parse_svg_dimensions(data: &[u8]) -> (u32, u32) {
+    let content = String::from_utf8_lossy(data);
+    
+    // Simple regex-like parsing for width="..." height="..."
+    let mut width = 0u32;
+    let mut height = 0u32;
+    
+    if let Some(svg_start) = content.find("<svg") {
+        let svg_tag = &content[svg_start..content[svg_start..].find('>').map(|i| svg_start + i + 1).unwrap_or(content.len())];
+        
+        // Parse width attribute
+        if let Some(w_start) = svg_tag.find("width=\"") {
+            let w_val = &svg_tag[w_start + 7..];
+            if let Some(w_end) = w_val.find('"') {
+                let w_str = &w_val[..w_end];
+                // Remove px, em, etc.
+                let numeric: String = w_str.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+                width = numeric.parse::<f64>().unwrap_or(0.0) as u32;
+            }
+        }
+        
+        // Parse height attribute
+        if let Some(h_start) = svg_tag.find("height=\"") {
+            let h_val = &svg_tag[h_start + 8..];
+            if let Some(h_end) = h_val.find('"') {
+                let h_str = &h_val[..h_end];
+                let numeric: String = h_str.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+                height = numeric.parse::<f64>().unwrap_or(0.0) as u32;
+            }
+        }
+    }
+    
+    (width, height)
+}
+
+/// Check if a file path is an image
+#[tauri::command]
+pub async fn check_is_image(file_path: String) -> Result<bool, String> {
+    Ok(is_image_file(&file_path))
+}
+
+/// Get image data for diff comparison (old and new versions)
+#[tauri::command]
+pub async fn get_image_diff(
+    repo_path: String,
+    file_path: String,
+    staged: bool,
+) -> Result<ImageDiffResult, String> {
+    let normalized_path = normalize_unicode(&file_path);
+    
+    if !is_image_file(&normalized_path) {
+        return Ok(ImageDiffResult {
+            old_image: None,
+            new_image: None,
+            is_image: false,
+            file_path: normalized_path,
+        });
+    }
+    
+    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
+    
+    // Get the OLD image (from HEAD or index)
+    let old_image = get_old_image_data(&repo, &normalized_path, staged);
+    
+    // Get the NEW image (from index for staged, or working directory for unstaged)
+    let new_image = get_new_image_data(&repo, &repo_path, &normalized_path, staged);
+    
+    Ok(ImageDiffResult {
+        old_image,
+        new_image,
+        is_image: true,
+        file_path: normalized_path,
+    })
+}
+
+/// Get old version of image from HEAD tree
+fn get_old_image_data(repo: &Repository, file_path: &str, staged: bool) -> Option<ImageData> {
+    // For both staged and unstaged, the "old" version is from HEAD
+    let head = repo.head().ok()?;
+    let tree = head.peel_to_tree().ok()?;
+    let entry = tree.get_path(Path::new(file_path)).ok()?;
+    let object = entry.to_object(repo).ok()?;
+    let blob = object.as_blob()?;
+    
+    Some(build_image_data(blob.content(), file_path))
+}
+
+/// Get new version of image
+fn get_new_image_data(repo: &Repository, repo_path: &str, file_path: &str, staged: bool) -> Option<ImageData> {
+    if staged {
+        // For staged: get from index
+        let index = repo.index().ok()?;
+        let entry = index.get_path(Path::new(file_path), 0)?;
+        let oid = entry.id;
+        let blob = repo.find_blob(oid).ok()?;
+        Some(build_image_data(blob.content(), file_path))
+    } else {
+        // For unstaged: get from working directory
+        let full_path = Path::new(repo_path).join(file_path);
+        let data = std::fs::read(&full_path).ok()?;
+        Some(build_image_data(&data, file_path))
+    }
+}
+
+/// Get image data at a specific commit
+#[tauri::command]
+pub async fn get_image_at_commit(
+    repo_path: String,
+    file_path: String,
+    commit_id: String,
+) -> Result<Option<ImageData>, String> {
+    let normalized_path = normalize_unicode(&file_path);
+    
+    if !is_image_file(&normalized_path) {
+        return Ok(None);
+    }
+    
+    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
+    let oid = Oid::from_str(&commit_id).map_err(|e| e.to_string())?;
+    let commit = repo.find_commit(oid).map_err(|e| e.to_string())?;
+    let tree = commit.tree().map_err(|e| e.to_string())?;
+    
+    let entry = tree
+        .get_path(Path::new(&normalized_path))
+        .map_err(|e| e.to_string())?;
+    let object = entry.to_object(&repo).map_err(|e| e.to_string())?;
+    let blob = object.as_blob().ok_or("Not a blob")?;
+    
+    Ok(Some(build_image_data(blob.content(), &normalized_path)))
 }

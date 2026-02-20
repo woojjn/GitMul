@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
+import ImageDiff from './ImageDiff';
 
 interface DiffLine {
   line_type: string;
@@ -34,7 +35,33 @@ interface DiffViewerProps {
   onClose?: () => void;
 }
 
-export default function DiffViewer({
+/** Check if a file path is an image based on extension */
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|svg|webp|bmp|ico|tiff?)$/i;
+const isImageFile = (path: string): boolean => IMAGE_EXTENSIONS.test(path);
+
+/**
+ * DiffViewer - Routes to ImageDiff for image files, TextDiffViewer for text files
+ */
+export default function DiffViewer(props: DiffViewerProps) {
+  // Phase 4: Image Diff - delegate to ImageDiff component for image files
+  if (isImageFile(props.filePath)) {
+    return (
+      <ImageDiff
+        repoPath={props.repoPath}
+        filePath={props.filePath}
+        staged={props.staged}
+        onClose={props.onClose}
+      />
+    );
+  }
+
+  return <TextDiffViewer {...props} />;
+}
+
+/**
+ * TextDiffViewer - Original text diff logic (extracted to avoid Rules of Hooks violation)
+ */
+function TextDiffViewer({
   repoPath,
   filePath,
   staged,
@@ -43,7 +70,7 @@ export default function DiffViewer({
   const [diffText, setDiffText] = useState<string>('');
   const [parsedDiff, setParsedDiff] = useState<ParsedDiff | null>(null);
   const [viewMode, setViewMode] = useState<'unified' | 'split'>('unified');
-  const [wordDiffEnabled, setWordDiffEnabled] = useState(true); // Word-level diff 토글
+  const [wordDiffEnabled, setWordDiffEnabled] = useState(true); // Word-level diff toggle
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
@@ -107,20 +134,15 @@ export default function DiffViewer({
   };
 
   /**
-   * Word-level diff를 렌더링하는 헬퍼 함수
-   * 추가/삭제된 단어를 강조 표시합니다.
-   * 
-   * 현재 구현: 라인 단위로 모든 단어를 강조 (v1.6 기본)
-   * TODO v1.7: 이전/이후 라인을 비교하여 실제 변경된 단어만 강조
+   * Word-level diff rendering helper
+   * Highlights added/deleted words.
    */
   const renderWordDiff = (content: string, lineType: string) => {
     if (!wordDiffEnabled || lineType === 'context') {
-      // Word diff가 비활성화되었거나 context 라인인 경우 일반 텍스트 반환
       return <span className="whitespace-pre">{content}</span>;
     }
 
-    // 단어별로 강조
-    const words = content.split(/(\s+)/); // 공백 포함하여 분할
+    const words = content.split(/(\s+)/);
     
     if (lineType === 'addition') {
       return (
@@ -394,7 +416,7 @@ export default function DiffViewer({
             }`}
             title="Toggle word-level diff highlighting"
           >
-            {wordDiffEnabled ? '✔' : ''} Word Diff
+            {wordDiffEnabled ? '\u2714' : ''} Word Diff
           </button>
 
           {onClose && (
