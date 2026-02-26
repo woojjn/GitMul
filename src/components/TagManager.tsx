@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as api from '../services/api';
 import type { TagInfo } from '../types/git';
-import { Tag, Plus, Trash2, Upload, X } from 'lucide-react';
+import { Tag, Plus, Trash2, Upload, X, Loader2, AlertCircle } from 'lucide-react';
 
 interface TagManagerProps {
   repoPath: string;
@@ -36,10 +36,9 @@ const TagManager: React.FC<TagManagerProps> = ({ repoPath, onClose }) => {
 
   const handleCreateTag = async () => {
     if (!newTagName.trim()) {
-      alert('태그 이름을 입력하세요');
+      setError('태그 이름을 입력하세요');
       return;
     }
-
     try {
       setLoading(true);
       if (isAnnotated) {
@@ -60,7 +59,6 @@ const TagManager: React.FC<TagManagerProps> = ({ repoPath, onClose }) => {
 
   const handleDeleteTag = async (tagName: string) => {
     if (!confirm(`태그 "${tagName}"을 삭제하시겠습니까?`)) return;
-
     try {
       setLoading(true);
       await api.deleteTag(repoPath, tagName);
@@ -75,7 +73,6 @@ const TagManager: React.FC<TagManagerProps> = ({ repoPath, onClose }) => {
   const handlePushTag = async (tagName: string) => {
     const remoteName = prompt('원격 저장소 이름을 입력하세요 (기본: origin)', 'origin');
     if (!remoteName) return;
-
     try {
       setLoading(true);
       await api.pushTag(repoPath, remoteName, tagName);
@@ -93,90 +90,89 @@ const TagManager: React.FC<TagManagerProps> = ({ repoPath, onClose }) => {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[#1e1e1e]">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-        <div className="flex items-center gap-2">
-          <Tag className="w-5 h-5" />
-          <h2 className="text-lg font-semibold">태그 관리</h2>
-          <span className="text-sm text-gray-500">({tags.length}개)</span>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowCreateDialog(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            <Plus className="w-4 h-4" />
-            새 태그
-          </button>
-          {onClose && (
-            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
-              <X className="w-5 h-5" />
+      <div className="px-4 py-3 border-b border-[#3c3c3c] bg-[#252526] flex-shrink-0">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <Tag size={16} className="text-yellow-500" />
+            <h2 className="text-[14px] font-semibold text-white">태그 관리</h2>
+            <span className="text-[11px] text-[#666]">({tags.length}개)</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowCreateDialog(true)}
+              className="flex items-center gap-1 px-2.5 py-1 text-[12px] bg-[#0078d4] text-white rounded hover:bg-[#1a8ad4] transition-colors"
+            >
+              <Plus size={12} />
+              새 태그
             </button>
-          )}
+            {onClose && (
+              <button onClick={onClose} className="p-1 text-[#888] hover:text-white hover:bg-[#3c3c3c] rounded transition-colors">
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Error */}
       {error && (
-        <div className="mx-4 mt-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded">
-          {error}
+        <div className="mx-4 mt-3 p-2.5 bg-[#3a1e1e] border border-[#5a2d2d] rounded flex items-start gap-2">
+          <AlertCircle size={14} className="text-[#e57373] flex-shrink-0 mt-0.5" />
+          <p className="text-[12px] text-[#e57373]">{error}</p>
         </div>
       )}
 
       {/* Tags List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div className="flex-1 overflow-y-auto py-1">
         {loading && tags.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          <div className="flex items-center justify-center h-32">
+            <Loader2 size={20} className="animate-spin text-[#0078d4]" />
           </div>
         ) : tags.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            태그가 없습니다
+          <div className="flex flex-col items-center justify-center h-full text-[#555]">
+            <Tag size={32} className="mb-2 opacity-50" />
+            <p className="text-[13px]">태그가 없습니다</p>
           </div>
         ) : (
           tags.map((tag) => (
             <div
               key={tag.name}
-              className="p-4 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+              className="group flex items-start px-4 py-2 hover:bg-[#2a2d2e] transition-colors"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Tag className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                    <h3 className="font-semibold text-lg">{tag.name}</h3>
-                    {tag.message && (
-                      <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
-                        Annotated
-                      </span>
-                    )}
-                  </div>
+              <Tag size={13} className="text-yellow-500 mt-0.5 mr-2 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="font-mono font-semibold text-[12px] text-white">{tag.name}</span>
                   {tag.message && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      {tag.message}
-                    </p>
+                    <span className="px-1.5 py-0 text-[9px] bg-[#1e3a5f] text-[#569cd6] rounded">Annotated</span>
                   )}
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                    <span className="font-mono">{tag.target.substring(0, 7)}</span>
-                    {tag.tagger && <span>{tag.tagger}</span>}
-                    {tag.date && <span>{formatDate(tag.date)}</span>}
-                  </div>
                 </div>
-                <div className="flex gap-2 ml-4">
-                  <button
-                    onClick={() => handlePushTag(tag.name)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-                    title="원격에 푸시"
-                  >
-                    <Upload className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteTag(tag.name)}
-                    className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                    title="삭제"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                {tag.message && (
+                  <p className="text-[11px] text-[#888] truncate">{tag.message}</p>
+                )}
+                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-[#666]">
+                  <span className="font-mono">{tag.target.substring(0, 7)}</span>
+                  {tag.tagger && <><span>•</span><span>{tag.tagger}</span></>}
+                  {tag.date && <><span>•</span><span>{formatDate(tag.date)}</span></>}
                 </div>
+              </div>
+              <div className="flex gap-0.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => handlePushTag(tag.name)}
+                  className="p-1.5 text-[#4fc1ff] hover:bg-[#094771] rounded transition-colors"
+                  title="원격에 푸시"
+                >
+                  <Upload size={13} />
+                </button>
+                <button
+                  onClick={() => handleDeleteTag(tag.name)}
+                  className="p-1.5 text-[#e57373] hover:bg-[#3a1e1e] rounded transition-colors"
+                  title="삭제"
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             </div>
           ))
@@ -185,59 +181,55 @@ const TagManager: React.FC<TagManagerProps> = ({ repoPath, onClose }) => {
 
       {/* Create Tag Dialog */}
       {showCreateDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">새 태그 생성</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg shadow-xl p-5 w-full max-w-md">
+            <h3 className="text-[14px] font-semibold mb-4 text-white">새 태그 생성</h3>
+            <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium mb-2">태그 이름</label>
+                <label className="block text-[12px] text-[#888] mb-1">태그 이름</label>
                 <input
                   type="text"
                   value={newTagName}
                   onChange={(e) => setNewTagName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900"
+                  onKeyDown={(e) => e.key === 'Enter' && !isAnnotated && handleCreateTag()}
+                  className="w-full px-3 py-2 text-[13px] border border-[#3c3c3c] rounded bg-[#1e1e1e] text-[#ccc] placeholder-[#555] outline-none focus:border-[#0078d4]"
                   placeholder="v1.0.0"
+                  autoFocus
                 />
               </div>
-              <div>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={isAnnotated}
-                    onChange={(e) => setIsAnnotated(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-sm">Annotated 태그 (메시지 포함)</span>
-                </label>
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isAnnotated}
+                  onChange={(e) => setIsAnnotated(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-[12px] text-[#ccc]">Annotated 태그 (메시지 포함)</span>
+              </label>
               {isAnnotated && (
                 <div>
-                  <label className="block text-sm font-medium mb-2">메시지</label>
+                  <label className="block text-[12px] text-[#888] mb-1">메시지</label>
                   <textarea
                     value={newTagMessage}
                     onChange={(e) => setNewTagMessage(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 resize-none"
+                    className="w-full px-3 py-2 text-[13px] border border-[#3c3c3c] rounded bg-[#1e1e1e] text-[#ccc] placeholder-[#555] outline-none focus:border-[#0078d4] resize-none"
                     rows={3}
                     placeholder="Release v1.0.0"
                   />
                 </div>
               )}
             </div>
-            <div className="flex gap-2 mt-6">
+            <div className="flex justify-end gap-2 mt-4">
               <button
-                onClick={() => {
-                  setShowCreateDialog(false);
-                  setNewTagName('');
-                  setNewTagMessage('');
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+                onClick={() => { setShowCreateDialog(false); setNewTagName(''); setNewTagMessage(''); }}
+                className="px-3 py-1.5 text-[13px] text-[#ccc] hover:bg-[#3c3c3c] rounded transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={handleCreateTag}
-                disabled={loading}
-                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                disabled={loading || !newTagName.trim()}
+                className="px-3 py-1.5 text-[13px] bg-[#0078d4] text-white rounded hover:bg-[#1a8ad4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? '생성 중...' : '생성'}
               </button>

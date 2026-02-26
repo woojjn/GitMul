@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as api from '../services/api';
 import type { RemoteInfo, RemoteBranchInfo, SyncProgress } from '../types/git';
-import { Cloud, CloudOff, Download, Upload, RefreshCw, Plus, Trash2, X } from 'lucide-react';
+import { Cloud, CloudOff, Download, Upload, RefreshCw, Plus, Trash2, X, GitBranch, Loader2, AlertCircle } from 'lucide-react';
 
 interface RemoteManagerProps {
   repoPath: string;
@@ -35,7 +35,6 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
   }, [selectedRemote]);
 
   useEffect(() => {
-    // Poll progress when syncing
     if (progress && progress.phase !== 'idle') {
       const interval = setInterval(async () => {
         try {
@@ -55,7 +54,6 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
       setError('');
       const remoteList = await api.listRemotes(repoPath);
       setRemotes(remoteList);
-      
       if (remoteList.length > 0 && !selectedRemote) {
         setSelectedRemote(remoteList[0].name);
       }
@@ -80,7 +78,6 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
       setError('리모트 이름과 URL을 입력해주세요');
       return;
     }
-
     try {
       setLoading(true);
       setError('');
@@ -97,10 +94,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
   };
 
   const handleRemoveRemote = async (remoteName: string) => {
-    if (!confirm(`리모트 '${remoteName}'을(를) 삭제하시겠습니까?`)) {
-      return;
-    }
-
+    if (!confirm(`리모트 '${remoteName}'을(를) 삭제하시겠습니까?`)) return;
     try {
       setLoading(true);
       setError('');
@@ -118,14 +112,11 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
 
   const handleFetch = async () => {
     if (!selectedRemote) return;
-
     try {
       setLoading(true);
       setError('');
       setProgress({ phase: 'fetching', current: 0, total: 0, bytes: 0, message: 'Fetching...' });
-      
       const result = await api.fetchRemote(repoPath, selectedRemote);
-      
       setProgress({ phase: 'idle', current: 0, total: 0, bytes: 0, message: result });
       await loadRemoteBranches(selectedRemote);
     } catch (err: any) {
@@ -138,14 +129,11 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
 
   const handlePull = async () => {
     if (!selectedRemote) return;
-
     try {
       setLoading(true);
       setError('');
       setProgress({ phase: 'pulling', current: 0, total: 0, bytes: 0, message: 'Pulling...' });
-      
       const result = await api.pullChanges(repoPath, selectedRemote, currentBranch);
-      
       setProgress({ phase: 'idle', current: 0, total: 0, bytes: 0, message: result });
       onSuccess?.(result);
     } catch (err: any) {
@@ -160,18 +148,12 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
 
   const handlePush = async (force: boolean = false) => {
     if (!selectedRemote) return;
-
-    if (force && !confirm('Force push는 원격 히스토리를 덮어씁니다. 계속하시겠습니까?')) {
-      return;
-    }
-
+    if (force && !confirm('Force push는 원격 히스토리를 덮어씁니다. 계속하시겠습니까?')) return;
     try {
       setLoading(true);
       setError('');
       setProgress({ phase: 'pushing', current: 0, total: 0, bytes: 0, message: 'Pushing...' });
-      
       const result = await api.pushChanges(repoPath, selectedRemote, currentBranch, force);
-      
       setProgress({ phase: 'idle', current: 0, total: 0, bytes: 0, message: result });
       onSuccess?.(result);
     } catch (err: any) {
@@ -189,28 +171,26 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900">
+    <div className="flex flex-col h-full bg-[#1e1e1e]">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+      <div className="px-4 py-3 border-b border-[#3c3c3c] bg-[#252526] flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-[14px] font-semibold text-white flex items-center gap-2">
+            <Cloud size={16} className="text-[#888]" />
             원격 저장소 관리
           </h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowAddRemote(true)}
               disabled={loading}
-              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1"
+              className="flex items-center gap-1 px-2.5 py-1 text-[12px] bg-[#0078d4] text-white rounded hover:bg-[#1a8ad4] disabled:opacity-50 transition-colors"
             >
-              <Plus size={14} />
+              <Plus size={12} />
               리모트 추가
             </button>
             {onClose && (
-              <button
-                onClick={onClose}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-              >
-                <X size={20} />
+              <button onClick={onClose} className="p-1 text-[#888] hover:text-white hover:bg-[#3c3c3c] rounded transition-colors">
+                <X size={14} />
               </button>
             )}
           </div>
@@ -222,7 +202,7 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
             <select
               value={selectedRemote}
               onChange={(e) => setSelectedRemote(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 min-w-0"
+              className="flex-1 px-2 py-1.5 text-[12px] border border-[#3c3c3c] rounded bg-[#1e1e1e] text-[#ccc] outline-none focus:border-[#0078d4] min-w-0"
             >
               {remotes.map((remote) => (
                 <option key={remote.name} value={remote.name}>
@@ -233,40 +213,39 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
             <button
               onClick={() => handleRemoveRemote(selectedRemote)}
               disabled={loading}
-              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
+              className="p-1.5 text-[#e57373] hover:bg-[#3a1e1e] rounded transition-colors disabled:opacity-50"
               title="리모트 삭제"
             >
-              <Trash2 size={18} />
+              <Trash2 size={14} />
             </button>
           </div>
         )}
       </div>
 
-      {/* Error Message */}
+      {/* Error */}
       {error && (
-        <div className="mx-4 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-          <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+        <div className="mx-4 mt-3 p-2.5 bg-[#3a1e1e] border border-[#5a2d2d] rounded flex items-start gap-2">
+          <AlertCircle size={14} className="text-[#e57373] flex-shrink-0 mt-0.5" />
+          <p className="text-[12px] text-[#e57373]">{error}</p>
         </div>
       )}
 
       {/* Progress */}
       {progress && progress.phase !== 'idle' && (
-        <div className="mx-4 mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-          <div className="flex items-center gap-2 mb-2">
-            <RefreshCw size={16} className="animate-spin text-blue-600" />
-            <span className="text-sm font-medium text-blue-900 dark:text-blue-300">
-              {progress.message}
-            </span>
+        <div className="mx-4 mt-3 p-3 bg-[#1e3a5f] border border-[#264f78] rounded">
+          <div className="flex items-center gap-2 mb-1">
+            <Loader2 size={14} className="animate-spin text-[#4fc1ff]" />
+            <span className="text-[12px] text-[#4fc1ff]">{progress.message}</span>
           </div>
           {progress.total > 0 && (
             <div className="space-y-1">
-              <div className="flex justify-between text-xs text-blue-700 dark:text-blue-400">
+              <div className="flex justify-between text-[10px] text-[#569cd6]">
                 <span>{progress.current} / {progress.total} objects</span>
                 <span>{formatBytes(progress.bytes)}</span>
               </div>
-              <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+              <div className="w-full bg-[#333] rounded-full h-1.5">
                 <div
-                  className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all"
+                  className="bg-[#0078d4] h-1.5 rounded-full transition-all"
                   style={{ width: `${(progress.current / progress.total) * 100}%` }}
                 />
               </div>
@@ -277,92 +256,78 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
 
       {/* Actions */}
       {remotes.length > 0 && (
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2">
+        <div className="px-4 py-3 border-b border-[#3c3c3c]">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={handleFetch}
               disabled={loading}
-              className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 px-3 py-1.5 text-[12px] bg-[#333] text-[#ccc] rounded hover:bg-[#444] disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
             >
-              <RefreshCw size={16} />
+              <RefreshCw size={13} />
               Fetch
             </button>
             <button
               onClick={handlePull}
               disabled={loading}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 px-3 py-1.5 text-[12px] bg-[#1e3a1e] text-[#73c991] rounded hover:bg-[#2a4d2a] disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
             >
-              <Download size={16} />
+              <Download size={13} />
               Pull
             </button>
             <button
               onClick={() => handlePush(false)}
               disabled={loading}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 px-3 py-1.5 text-[12px] bg-[#0078d4] text-white rounded hover:bg-[#1a8ad4] disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
             >
-              <Upload size={16} />
+              <Upload size={13} />
               Push
             </button>
           </div>
           <button
             onClick={() => handlePush(true)}
             disabled={loading}
-            className="w-full mt-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors text-sm flex items-center justify-center gap-2"
+            className="w-full mt-1.5 px-3 py-1.5 text-[11px] bg-[#3a1e1e] text-[#e57373] rounded hover:bg-[#4a2828] disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
           >
-            <Upload size={14} />
+            <Upload size={12} />
             Force Push (주의!)
           </button>
         </div>
       )}
 
       {/* Remote Branches */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto py-1">
         {remotes.length === 0 ? (
-          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-            <CloudOff size={48} className="mx-auto mb-3 opacity-50" />
-            <p>리모트가 없습니다</p>
-            <p className="text-sm mt-1">"리모트 추가" 버튼을 클릭하여 원격 저장소를 추가하세요</p>
+          <div className="text-center text-[#555] py-8">
+            <CloudOff size={32} className="mx-auto mb-2 opacity-50" />
+            <p className="text-[13px]">리모트가 없습니다</p>
+            <p className="text-[11px] mt-1 text-[#444]">"리모트 추가" 버튼을 클릭하여 원격 저장소를 추가하세요</p>
           </div>
         ) : loading && remoteBranches.length === 0 ? (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <Loader2 size={20} className="animate-spin text-[#0078d4]" />
           </div>
         ) : remoteBranches.length === 0 ? (
-          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-            <Cloud size={48} className="mx-auto mb-3 opacity-50" />
-            <p>리모트 브랜치가 없습니다</p>
-            <p className="text-sm mt-1">"Fetch" 버튼을 클릭하여 리모트 브랜치를 가져오세요</p>
+          <div className="text-center text-[#555] py-8">
+            <Cloud size={32} className="mx-auto mb-2 opacity-50" />
+            <p className="text-[13px]">리모트 브랜치가 없습니다</p>
+            <p className="text-[11px] mt-1 text-[#444]">"Fetch"를 클릭하여 리모트 브랜치를 가져오세요</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+          <div>
+            <div className="px-4 py-1.5 text-[11px] text-[#888] font-semibold uppercase tracking-wider">
               리모트 브랜치 ({remoteBranches.length})
-            </h3>
+            </div>
             {remoteBranches.map((branch) => (
               <div
                 key={branch.full_name}
-                className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                className="group flex items-center px-4 py-1.5 text-[12px] text-[#ccc] hover:bg-[#2a2d2e] transition-colors"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="font-mono font-semibold text-gray-900 dark:text-gray-100 break-all">
-                        {branch.name}
-                      </span>
-                      {branch.is_head && (
-                        <span className="px-1.5 py-0.5 text-xs bg-green-500 text-white rounded flex-shrink-0">
-                          HEAD
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 break-words line-clamp-2">
-                      {branch.commit_message}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-500 flex-wrap">
-                      <span className="font-mono truncate max-w-[200px]">{branch.commit_sha}</span>
-                    </div>
-                  </div>
-                </div>
+                <GitBranch size={12} className="text-[#666] mr-2 flex-shrink-0" />
+                <span className="font-mono truncate flex-1">{branch.name}</span>
+                {branch.is_head && (
+                  <span className="px-1.5 py-0 text-[9px] bg-green-600 text-white rounded flex-shrink-0 mx-1">HEAD</span>
+                )}
+                <span className="text-[10px] text-[#666] font-mono ml-2 flex-shrink-0">{branch.commit_sha}</span>
               </div>
             ))}
           </div>
@@ -371,54 +336,43 @@ export default function RemoteManager({ repoPath, currentBranch, onClose, onSucc
 
       {/* Add Remote Dialog */}
       {showAddRemote && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-              리모트 추가
-            </h3>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg shadow-xl p-5 w-full max-w-md">
+            <h3 className="text-[14px] font-semibold mb-4 text-white">리모트 추가</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                  이름:
-                </label>
+                <label className="block text-[12px] text-[#888] mb-1">이름:</label>
                 <input
                   type="text"
                   value={newRemoteName}
                   onChange={(e) => setNewRemoteName(e.target.value)}
                   placeholder="origin"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  className="w-full px-3 py-2 text-[13px] border border-[#3c3c3c] rounded bg-[#1e1e1e] text-[#ccc] placeholder-[#555] outline-none focus:border-[#0078d4]"
                   autoFocus
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                  URL:
-                </label>
+                <label className="block text-[12px] text-[#888] mb-1">URL:</label>
                 <input
                   type="text"
                   value={newRemoteUrl}
                   onChange={(e) => setNewRemoteUrl(e.target.value)}
                   placeholder="https://github.com/user/repo.git"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  className="w-full px-3 py-2 text-[13px] border border-[#3c3c3c] rounded bg-[#1e1e1e] text-[#ccc] placeholder-[#555] outline-none focus:border-[#0078d4]"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button
-                onClick={() => {
-                  setShowAddRemote(false);
-                  setNewRemoteName('');
-                  setNewRemoteUrl('');
-                  setError('');
-                }}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                onClick={() => { setShowAddRemote(false); setNewRemoteName(''); setNewRemoteUrl(''); setError(''); }}
+                className="px-3 py-1.5 text-[13px] text-[#ccc] hover:bg-[#3c3c3c] rounded transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={handleAddRemote}
-                disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                disabled={loading || !newRemoteName.trim() || !newRemoteUrl.trim()}
+                className="px-3 py-1.5 text-[13px] bg-[#0078d4] text-white rounded hover:bg-[#1a8ad4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? '추가 중...' : '추가'}
               </button>

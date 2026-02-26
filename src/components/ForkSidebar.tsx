@@ -131,7 +131,7 @@ export default function ForkSidebar({
     : localBranches;
 
   return (
-    <div className="w-[190px] flex flex-col bg-[#252526] border-r border-[#3c3c3c] overflow-hidden select-none">
+    <div className="w-full h-full flex flex-col bg-[#252526] border-r border-[#3c3c3c] overflow-hidden select-none">
       {/* Repository name header */}
       {currentRepoName && (
         <div className="px-3 py-2 border-b border-[#3c3c3c] flex items-center justify-between">

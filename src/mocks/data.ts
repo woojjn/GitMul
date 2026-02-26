@@ -34,7 +34,17 @@ const date = (daysAgo: number) => {
   const d = new Date(Date.now() - daysAgo * 86400000);
   return d.toISOString().replace('T', ' ').slice(0, 19);
 };
-const sha = (n: number) => n.toString(16).padStart(40, '0');
+const sha = (n: number) => {
+  // Generate realistic-looking hex SHAs from a seed number
+  const hex = 'abcdef0123456789';
+  let result = '';
+  let seed = n * 2654435761; // Knuth multiplicative hash
+  for (let i = 0; i < 40; i++) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    result += hex[seed % 16];
+  }
+  return result;
+};
 
 // ============================================================================
 // Repository

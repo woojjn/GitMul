@@ -256,7 +256,7 @@ function App() {
     if (!dataState?.currentRepo) return null;
     const repoPath = dataState.currentRepo.path;
 
-    if (uiState?.showBranchManager) return <BranchManager repoPath={repoPath} />;
+    if (uiState?.showBranchManager) return <BranchManager repoPath={repoPath} onClose={() => updateTabUIState(activeTabId!, { showBranchManager: false })} />;
     if (uiState?.showCommitGraph) return <CommitGraph repoPath={repoPath} commits={dataState.commits} />;
     if (uiState?.showStashManager) return <StashManager repoPath={repoPath} onClose={() => updateTabUIState(activeTabId!, { showStashManager: false })} />;
     if (uiState?.showTagManager) return <TagManager repoPath={repoPath} />;
