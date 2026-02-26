@@ -375,6 +375,13 @@ export const cloneFromBundle = (bundlePath: string, targetPath: string) =>
   invoke<string>('clone_from_bundle', { bundlePath, targetPath });
 
 // ============================================================================
+// Clone
+// ============================================================================
+
+export const cloneRepository = (url: string, targetPath: string) =>
+  invoke<string>('clone_repository', { url, targetPath });
+
+// ============================================================================
 // Dialog Helpers (Tauri Dialog API)
 // ============================================================================
 

@@ -1,9 +1,10 @@
-import { FolderOpen, GitBranch, Moon, Sun, Clock } from 'lucide-react';
+import { FolderOpen, GitBranch, Moon, Sun, Clock, Download } from 'lucide-react';
 
 interface WelcomeScreenProps {
   darkMode: boolean;
   onToggleDarkMode: () => void;
   onOpenRepository: () => void;
+  onCloneRepository: () => void;
   recentRepos?: { path: string; name: string }[];
   onOpenRepoPath?: (path: string) => void;
 }
@@ -12,6 +13,7 @@ export default function WelcomeScreen({
   darkMode,
   onToggleDarkMode,
   onOpenRepository,
+  onCloneRepository,
   recentRepos,
   onOpenRepoPath,
 }: WelcomeScreenProps) {
@@ -48,6 +50,13 @@ export default function WelcomeScreen({
             className="px-6 py-2.5 bg-[#0078d4] text-white rounded text-[14px] font-medium hover:bg-[#1a8ad4] transition-colors"
           >
             Open Repository
+          </button>
+          <button
+            onClick={onCloneRepository}
+            className="ml-3 px-6 py-2.5 bg-[#333] text-white rounded text-[14px] font-medium hover:bg-[#444] border border-[#3c3c3c] transition-colors inline-flex items-center gap-2"
+          >
+            <Download size={15} />
+            Clone Repository
           </button>
 
           {/* Recent repos */}

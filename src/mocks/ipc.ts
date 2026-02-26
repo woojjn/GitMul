@@ -766,6 +766,16 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, any>): Pr
     case 'clone_from_bundle':
       return `번들에서 클론 완료: ${args?.targetPath ?? '/tmp/cloned'}` as unknown as T;
 
+    // ---- Clone ----
+    case 'clone_repository': {
+      const url = args?.url ?? '';
+      const targetPath = args?.targetPath ?? '/home/user/projects/cloned-repo';
+      console.log(`[Mock] Clone repository: ${url} → ${targetPath}`);
+      await delay(800); // Simulate clone time
+      // Return the target path as the result
+      return targetPath as unknown as T;
+    }
+
     // ---- Shell / System Integration ----
     case 'open_in_explorer':
       console.log(`[Mock] Open in Explorer: ${args?.repoPath}`);

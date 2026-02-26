@@ -27,6 +27,7 @@ import CherryPickDialog from './components/CherryPickDialog';
 import RevertDialog from './components/RevertDialog';
 import WelcomeScreen from './components/WelcomeScreen';
 import ToastContainer from './components/Toast';
+import CloneDialog from './components/CloneDialog';
 import ResizeHandle from './components/ResizeHandle';
 
 // Hooks
@@ -78,7 +79,7 @@ function App() {
   const { toasts, removeToast, success: showSuccess, error: showError } = useToast();
 
   // Repository operations
-  const { recentRepos, loadRecentRepos, openRepository, openRepositoryPath, refreshRepository } = useRepository({
+  const { recentRepos, loadRecentRepos, openRepository, openRepositoryPath, cloneRepository, refreshRepository } = useRepository({
     tabManager,
     onSuccess: showSuccess,
     onError: showError,
@@ -91,6 +92,9 @@ function App() {
     onSuccess: showSuccess,
     onError: showError,
   });
+
+  // Clone dialog state
+  const [showCloneDialog, setShowCloneDialog] = useState(false);
 
   // Load recent repos on mount
   useEffect(() => {
@@ -214,6 +218,7 @@ function App() {
     { key: 'Tab', ctrl: true, handler: switchToNextTab, description: 'Next Tab' },
     { key: 'Tab', ctrl: true, shift: true, handler: switchToPrevTab, description: 'Prev Tab' },
     { key: 'w', ctrl: true, handler: () => { if (activeTabId) closeTab(activeTabId); }, description: 'Close Tab' },
+    { key: 'c', ctrl: true, shift: true, handler: () => setShowCloneDialog(true), description: 'Clone Repository' },
   ]);
 
   // Welcome screen
@@ -224,8 +229,14 @@ function App() {
           darkMode={darkMode}
           onToggleDarkMode={() => setDarkMode(!darkMode)}
           onOpenRepository={openRepository}
+          onCloneRepository={() => setShowCloneDialog(true)}
           recentRepos={recentRepos}
           onOpenRepoPath={openRepositoryPath}
+        />
+        <CloneDialog
+          isOpen={showCloneDialog}
+          onClose={() => setShowCloneDialog(false)}
+          onCloned={(path) => openRepositoryPath(path)}
         />
         <ToastContainer toasts={toasts} onClose={removeToast} />
       </>
@@ -377,6 +388,7 @@ function App() {
       <MenuBar
         hasRepo={!!dataState?.currentRepo}
         onOpenRepo={openRepository}
+        onCloneRepo={() => setShowCloneDialog(true)}
         onRefresh={refreshRepository}
         onStageAll={stageAll}
         onCommit={handleOpenCommitDialog}
@@ -627,6 +639,11 @@ function App() {
       <AccessibilitySettings
         isOpen={uiState?.showAccessibilitySettings || false}
         onClose={() => updateTabUIState(activeTabId!, { showAccessibilitySettings: false })}
+      />
+      <CloneDialog
+        isOpen={showCloneDialog}
+        onClose={() => setShowCloneDialog(false)}
+        onCloned={(path) => openRepositoryPath(path)}
       />
       <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>

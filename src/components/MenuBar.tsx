@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 interface MenuBarProps {
   hasRepo: boolean;
   onOpenRepo: () => void;
+  onCloneRepo: () => void;
   onRefresh: () => void;
   onStageAll: () => void;
   onCommit: () => void;
@@ -37,6 +38,7 @@ interface MenuItem {
 export default function MenuBar({
   hasRepo,
   onOpenRepo,
+  onCloneRepo,
   onRefresh,
   onStageAll,
   onCommit,
@@ -73,6 +75,7 @@ export default function MenuBar({
   const menus: Record<string, MenuItem[]> = {
     File: [
       { label: 'Open Repository...', shortcut: 'Ctrl+O', action: onOpenRepo },
+      { label: 'Clone Repository...', shortcut: 'Ctrl+Shift+C', action: onCloneRepo },
       { label: 'Open Recent', submenu: recentRepos.length > 0
         ? recentRepos.map(r => ({ label: r.name, action: () => { onOpenRepoPath(r.path); setOpenMenu(null); } }))
         : [{ label: '(No recent repos)', disabled: true }]

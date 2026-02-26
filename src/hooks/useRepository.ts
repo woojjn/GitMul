@@ -118,6 +118,19 @@ export function useRepository({ tabManager, onSuccess, onError }: UseRepositoryP
     }
   };
 
+  /** Clone a repository from a URL into targetPath, then open it. */
+  const cloneRepository = async (url: string, targetPath: string) => {
+    try {
+      const clonedPath = await api.cloneRepository(url, targetPath);
+      const openPath = clonedPath || targetPath;
+      await openRepositoryPath(openPath);
+      onSuccess('클론 완료');
+    } catch (error) {
+      onError(`클론 실패: ${error}`);
+      throw error;
+    }
+  };
+
   /** Refresh current active tab's repository data. */
   const refreshRepository = async () => {
     if (!activeTabId || !activeTab?.dataState.currentRepo) return;
@@ -161,6 +174,7 @@ export function useRepository({ tabManager, onSuccess, onError }: UseRepositoryP
     loadRecentRepos,
     openRepository,
     openRepositoryPath,
+    cloneRepository,
     refreshRepository,
   };
 }
