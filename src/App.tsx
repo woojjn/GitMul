@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FolderOpen } from 'lucide-react';
 
 // Components
@@ -27,6 +27,7 @@ import CherryPickDialog from './components/CherryPickDialog';
 import RevertDialog from './components/RevertDialog';
 import WelcomeScreen from './components/WelcomeScreen';
 import ToastContainer from './components/Toast';
+import ResizeHandle from './components/ResizeHandle';
 
 // Hooks
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -44,6 +45,13 @@ function App() {
     const saved = localStorage.getItem('gitmul_dark_mode');
     return saved !== null ? saved === 'true' : true;
   });
+
+  // Resizable panel sizes (px)
+  const [sidebarWidth, setSidebarWidth] = useState(200);     // ForkSidebar width
+  const [fileListWidth, setFileListWidth] = useState(280);   // Changes view: file list width
+  const [commitDetailPct, setCommitDetailPct] = useState(45); // Commits view: detail panel height %
+
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
   // Extra sidebar data
   const [tags, setTags] = useState<any[]>([]);
@@ -262,7 +270,7 @@ function App() {
     return (
       <div className="flex-1 flex overflow-hidden">
         {/* Left: File changes with commit area */}
-        <div className="w-[280px] flex-shrink-0 border-r border-[#3c3c3c] flex flex-col">
+        <div style={{ width: fileListWidth, minWidth: 180, maxWidth: 600 }} className="flex-shrink-0 flex flex-col">
           <FileChanges
             files={dataState.fileChanges}
             onStage={stageFile}
@@ -279,6 +287,12 @@ function App() {
             }}
           />
         </div>
+
+        {/* File list ↔ Diff resize handle */}
+        <ResizeHandle
+          direction="horizontal"
+          onResize={(d) => setFileListWidth(prev => clamp(prev + d, 180, 600))}
+        />
 
         {/* Right: Diff viewer or placeholder */}
         <div className="flex-1 overflow-hidden bg-[#1e1e1e]">
@@ -334,7 +348,15 @@ function App() {
 
         {/* Bottom: Detail panel (shows when commit selected) */}
         {selectedCommit && (
-          <div className="h-[45%] min-h-[200px] flex-shrink-0 overflow-hidden">
+          <>
+          <ResizeHandle
+            direction="vertical"
+            onResize={(d) => {
+              // negative delta = drag up = bigger detail panel
+              setCommitDetailPct(prev => clamp(prev - (d / window.innerHeight) * 100, 15, 70));
+            }}
+          />
+          <div style={{ height: `${commitDetailPct}%` }} className="min-h-[120px] flex-shrink-0 overflow-hidden">
             <CommitDetailPanel
               repoPath={dataState.currentRepo.path}
               commit={selectedCommit}
@@ -343,6 +365,7 @@ function App() {
               }}
             />
           </div>
+          </>
         )}
       </>
     );
@@ -452,6 +475,7 @@ function App() {
       {activeTab && dataState && (
         <div className="flex-1 flex overflow-hidden">
           {/* Fork-style Sidebar */}
+          <div style={{ width: sidebarWidth, minWidth: 120, maxWidth: 400 }} className="flex-shrink-0">
           <ForkSidebar
             branches={dataState.branches}
             tags={tags}
@@ -515,6 +539,13 @@ function App() {
               });
             }}
             activeView={overlayContent ? undefined : sidebarView}
+          />
+          </div>
+
+          {/* Sidebar resize handle */}
+          <ResizeHandle
+            direction="horizontal"
+            onResize={(d) => setSidebarWidth(prev => clamp(prev + d, 120, 400))}
           />
 
           {/* Main panel */}
