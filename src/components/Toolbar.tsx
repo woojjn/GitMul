@@ -1,245 +1,208 @@
-import { 
-  FolderOpen, RefreshCw, GitBranch, GitCommit, Network, Package, 
-  Tag, RotateCcw, Eye, Keyboard, Settings2, Moon, Sun, FileArchive 
-} from 'lucide-react';
+import { Download, Upload, RefreshCw, GitBranch, GitMerge, Archive, Tag, RotateCcw, Package, GitCommit, Terminal, Eye, Plus, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 import type { TabUIState } from '../types/tab';
 
 interface ToolbarProps {
   activeTabId: string;
   uiState: TabUIState | undefined;
   hasRepo: boolean;
-  darkMode: boolean;
-  onOpenRepo: () => void;
+  repoName?: string;
+  currentBranch?: string;
   onRefresh: () => void;
-  onToggleDarkMode: () => void;
-  onUpdateUIState: (tabId: string, updates: Partial<TabUIState>) => void;
+  onUpdateUIState: (tabId: string, state: Partial<TabUIState>) => void;
+  onFetch: () => void;
+  onPull: () => void;
+  onPush: () => void;
+  onCommit: () => void;
+  onStageAll: () => void;
 }
 
-/**
- * Toolbar Component
- * 
- * Main toolbar with repository actions, view toggles, and settings.
- */
+interface ToolbarButtonProps {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  active?: boolean;
+  badge?: string;
+}
+
+function ToolbarButton({ icon, label, onClick, disabled, active, badge }: ToolbarButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex flex-col items-center justify-center px-3 py-1 min-w-[52px] rounded transition-colors relative ${
+        active
+          ? 'bg-[#094771] text-white'
+          : disabled
+          ? 'text-[#555] cursor-not-allowed'
+          : 'text-[#cccccc] hover:bg-[#2a2d2e] hover:text-white'
+      }`}
+      title={label}
+    >
+      <div className="relative">
+        {icon}
+        {badge && (
+          <span className="absolute -top-1 -right-2 text-[8px] bg-blue-500 text-white px-1 rounded-full leading-tight">
+            {badge}
+          </span>
+        )}
+      </div>
+      <span className="text-[10px] mt-0.5 leading-tight whitespace-nowrap">{label}</span>
+    </button>
+  );
+}
+
+function ToolbarSeparator() {
+  return <div className="w-px h-[36px] bg-[#3c3c3c] mx-1 self-center" />;
+}
+
 export default function Toolbar({
   activeTabId,
   uiState,
   hasRepo,
-  darkMode,
-  onOpenRepo,
+  repoName,
+  currentBranch,
   onRefresh,
-  onToggleDarkMode,
   onUpdateUIState,
+  onFetch,
+  onPull,
+  onPush,
+  onCommit,
+  onStageAll,
 }: ToolbarProps) {
+  const resetViews = () => ({
+    showBranchManager: false,
+    showRemoteManager: false,
+    showCommitGraph: false,
+    showStashManager: false,
+    showTagManager: false,
+    showReflogViewer: false,
+    showConflictResolver: false,
+    showBundleManager: false,
+    showMergeDialog: false,
+    selectedFile: null,
+    fileHistoryPath: null,
+  });
+
+  const toggleView = (key: keyof TabUIState) => {
+    const current = uiState?.[key];
+    onUpdateUIState(activeTabId, {
+      ...resetViews(),
+      [key]: !current,
+    });
+  };
+
   return (
-    <div className="flex items-center gap-2 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-      {/* Open Repository */}
-      <button
-        onClick={onOpenRepo}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        title="레포지토리 열기 (Ctrl+O)"
-      >
-        <FolderOpen size={18} />
-      </button>
+    <div
+      className="flex items-center px-2 py-0.5 bg-[#252526] border-b border-[#3c3c3c] min-h-[48px]"
+    >
+      {/* Left group: Fetch, Pull, Push, Stash */}
+      <ToolbarButton
+        icon={<RefreshCw size={16} />}
+        label="Fetch"
+        onClick={onFetch}
+        disabled={!hasRepo}
+      />
+      <ToolbarButton
+        icon={<ArrowDownToLine size={16} />}
+        label="Pull"
+        onClick={onPull}
+        disabled={!hasRepo}
+      />
+      <ToolbarButton
+        icon={<ArrowUpFromLine size={16} />}
+        label="Push"
+        onClick={onPush}
+        disabled={!hasRepo}
+      />
+      <ToolbarButton
+        icon={<Archive size={16} />}
+        label="Stash"
+        onClick={() => toggleView('showStashManager')}
+        disabled={!hasRepo}
+        active={uiState?.showStashManager}
+      />
 
-      {hasRepo && (
-        <>
-          {/* Refresh */}
-          <button
-            onClick={onRefresh}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="새로고침 (Ctrl+R)"
-          >
-            <RefreshCw size={18} />
-          </button>
+      <ToolbarSeparator />
 
-          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
-
-          {/* Branch Manager */}
-          <button
-            onClick={() => onUpdateUIState(activeTabId, {
-              showBranchManager: !uiState?.showBranchManager,
-              showRemoteManager: false,
-              showCommitGraph: false,
-              showStashManager: false,
-              showTagManager: false,
-              showReflogViewer: false,
-              showBundleManager: false,
-            })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              uiState?.showBranchManager
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-            title="브랜치 관리 (Ctrl+B)"
-          >
-            <GitBranch size={18} />
-          </button>
-
-          {/* Merge */}
-          <button
-            onClick={() => onUpdateUIState(activeTabId, { showMergeDialog: true })}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="병합"
-          >
-            <GitCommit size={18} />
-          </button>
-
-          {/* Stash Manager */}
-          <button
-            onClick={() => onUpdateUIState(activeTabId, {
-              showStashManager: !uiState?.showStashManager,
-              showBranchManager: false,
-              showRemoteManager: false,
-              showCommitGraph: false,
-              showTagManager: false,
-              showReflogViewer: false,
-              showBundleManager: false,
-            })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              uiState?.showStashManager
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-            title="Stash"
-          >
-            <Package size={18} />
-          </button>
-
-          {/* Tag Manager */}
-          <button
-            onClick={() => onUpdateUIState(activeTabId, {
-              showTagManager: !uiState?.showTagManager,
-              showBranchManager: false,
-              showRemoteManager: false,
-              showCommitGraph: false,
-              showStashManager: false,
-              showReflogViewer: false,
-              showBundleManager: false,
-            })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              uiState?.showTagManager
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-            title="태그"
-          >
-            <Tag size={18} />
-          </button>
-
-          {/* Reflog */}
-          <button
-            onClick={() => onUpdateUIState(activeTabId, {
-              showReflogViewer: !uiState?.showReflogViewer,
-              showBranchManager: false,
-              showRemoteManager: false,
-              showCommitGraph: false,
-              showStashManager: false,
-              showTagManager: false,
-              showBundleManager: false,
-            })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              uiState?.showReflogViewer
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-            title="Reflog"
-          >
-            <RotateCcw size={18} />
-          </button>
-
-          {/* Remote Manager */}
-          <button
-            onClick={() => onUpdateUIState(activeTabId, {
-              showRemoteManager: !uiState?.showRemoteManager,
-              showBranchManager: false,
-              showCommitGraph: false,
-              showStashManager: false,
-              showTagManager: false,
-              showReflogViewer: false,
-              showBundleManager: false,
-            })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              uiState?.showRemoteManager
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-            title="원격 저장소 (Ctrl+M)"
-          >
-            <Network size={18} />
-          </button>
-
-          {/* Commit Graph */}
-          <button
-            onClick={() => onUpdateUIState(activeTabId, {
-              showCommitGraph: !uiState?.showCommitGraph,
-              showBranchManager: false,
-              showRemoteManager: false,
-              showStashManager: false,
-              showTagManager: false,
-              showReflogViewer: false,
-              showBundleManager: false,
-            })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              uiState?.showCommitGraph
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-            title="커밋 그래프"
-          >
-            <Eye size={18} />
-          </button>
-
-          {/* Bundle Manager */}
-          <button
-            onClick={() => onUpdateUIState(activeTabId, {
-              showBundleManager: !uiState?.showBundleManager,
-              showBranchManager: false,
-              showRemoteManager: false,
-              showStashManager: false,
-              showTagManager: false,
-              showReflogViewer: false,
-              showCommitGraph: false,
-            })}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              uiState?.showBundleManager
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-            title="Git Bundle"
-          >
-            <FileArchive size={18} />
-          </button>
-        </>
+      {/* Center: Repository info */}
+      {hasRepo && repoName && (
+        <div className="flex flex-col items-center justify-center px-4 min-w-[120px]">
+          <span className="text-[13px] font-semibold text-white leading-tight">{repoName}</span>
+          {currentBranch && (
+            <div className="flex items-center gap-1 mt-0.5">
+              <GitBranch size={11} className="text-[#888]" />
+              <span className="text-[11px] text-[#888]">{currentBranch}</span>
+            </div>
+          )}
+        </div>
       )}
 
+      <ToolbarSeparator />
+
+      {/* Right group: Commit, Branch, Merge, Tag */}
+      <ToolbarButton
+        icon={<GitCommit size={16} />}
+        label="Commit"
+        onClick={onCommit}
+        disabled={!hasRepo}
+      />
+      <ToolbarButton
+        icon={<Plus size={16} />}
+        label="Stage All"
+        onClick={onStageAll}
+        disabled={!hasRepo}
+      />
+      <ToolbarButton
+        icon={<GitBranch size={16} />}
+        label="Branch"
+        onClick={() => toggleView('showBranchManager')}
+        disabled={!hasRepo}
+        active={uiState?.showBranchManager}
+      />
+      <ToolbarButton
+        icon={<GitMerge size={16} />}
+        label="Merge"
+        onClick={() => toggleView('showMergeDialog')}
+        disabled={!hasRepo}
+        active={uiState?.showMergeDialog}
+      />
+      <ToolbarButton
+        icon={<Tag size={16} />}
+        label="Tag"
+        onClick={() => toggleView('showTagManager')}
+        disabled={!hasRepo}
+        active={uiState?.showTagManager}
+      />
+
+      <ToolbarSeparator />
+
+      {/* Utility group */}
+      <ToolbarButton
+        icon={<RotateCcw size={16} />}
+        label="Reflog"
+        onClick={() => toggleView('showReflogViewer')}
+        disabled={!hasRepo}
+        active={uiState?.showReflogViewer}
+      />
+      <ToolbarButton
+        icon={<Package size={16} />}
+        label="Bundle"
+        onClick={() => toggleView('showBundleManager')}
+        disabled={!hasRepo}
+        active={uiState?.showBundleManager}
+      />
+
+      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Keyboard Shortcuts */}
-      <button
-        onClick={() => onUpdateUIState(activeTabId, { showShortcutHelp: true })}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        title="단축키 도움말"
-      >
-        <Keyboard size={18} />
-      </button>
-
-      {/* Accessibility Settings */}
-      <button
-        onClick={() => onUpdateUIState(activeTabId, { showAccessibilitySettings: true })}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        title="접근성 설정"
-      >
-        <Settings2 size={18} />
-      </button>
-
-      {/* Dark Mode Toggle */}
-      <button
-        onClick={onToggleDarkMode}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        title="테마 전환"
-      >
-        {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-      </button>
+      {/* Far right: Refresh */}
+      <ToolbarButton
+        icon={<RefreshCw size={16} />}
+        label="Refresh"
+        onClick={onRefresh}
+        disabled={!hasRepo}
+      />
     </div>
   );
 }

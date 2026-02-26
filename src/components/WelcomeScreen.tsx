@@ -1,53 +1,77 @@
-import { FolderOpen, GitBranch, Moon, Sun } from 'lucide-react';
+import { FolderOpen, GitBranch, Moon, Sun, Clock } from 'lucide-react';
 
 interface WelcomeScreenProps {
   darkMode: boolean;
   onToggleDarkMode: () => void;
   onOpenRepository: () => void;
+  recentRepos?: { path: string; name: string }[];
+  onOpenRepoPath?: (path: string) => void;
 }
 
-/**
- * Welcome Screen Component
- * 
- * Shown when no tabs are open.
- * Provides a clean interface to open a repository.
- */
-export default function WelcomeScreen({ 
-  darkMode, 
-  onToggleDarkMode, 
-  onOpenRepository 
+export default function WelcomeScreen({
+  darkMode,
+  onToggleDarkMode,
+  onOpenRepository,
+  recentRepos,
+  onOpenRepoPath,
 }: WelcomeScreenProps) {
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <GitBranch size={24} />
+    <div className="h-screen flex flex-col bg-[#1e1e1e] text-[#ccc]">
+      {/* Menu bar */}
+      <div className="flex items-center h-[30px] bg-[#1e1e1e] border-b border-[#3c3c3c] px-3 select-none">
+        <span className="text-[13px] font-semibold text-white flex items-center gap-2">
+          <GitBranch size={16} className="text-[#0078d4]" />
           GitMul
-        </h1>
+        </span>
+        <div className="flex-1" />
         <button
           onClick={onToggleDarkMode}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          aria-label="Toggle dark mode"
+          className="p-1 rounded hover:bg-[#2a2d2e] transition-colors"
+          title="Toggle Theme"
         >
-          {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+          {darkMode ? <Sun size={14} className="text-[#888]" /> : <Moon size={14} className="text-[#888]" />}
         </button>
       </div>
 
-      {/* Welcome Content */}
+      {/* Main content */}
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <FolderOpen size={64} className="mx-auto mb-4 text-gray-400" />
-          <h2 className="text-2xl font-semibold mb-2">Welcome to GitMul</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            레포지토리를 열어서 시작하세요
+        <div className="text-center max-w-[400px]">
+          <div className="w-16 h-16 rounded-full bg-[#252526] border border-[#3c3c3c] flex items-center justify-center mx-auto mb-6">
+            <GitBranch size={32} className="text-[#0078d4]" />
+          </div>
+          <h2 className="text-[24px] font-semibold text-white mb-2">Welcome to GitMul</h2>
+          <p className="text-[14px] text-[#888] mb-6">
+            A fast and friendly Git client
           </p>
           <button
             onClick={onOpenRepository}
-            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            className="px-6 py-2.5 bg-[#0078d4] text-white rounded text-[14px] font-medium hover:bg-[#1a8ad4] transition-colors"
           >
-            레포지토리 열기
+            Open Repository
           </button>
+
+          {/* Recent repos */}
+          {recentRepos && recentRepos.length > 0 && (
+            <div className="mt-8">
+              <div className="flex items-center gap-1.5 text-[11px] text-[#888] uppercase tracking-wider font-semibold mb-2">
+                <Clock size={11} />
+                Recent Repositories
+              </div>
+              <div className="space-y-1">
+                {recentRepos.slice(0, 5).map(r => (
+                  <button
+                    key={r.path}
+                    onClick={() => onOpenRepoPath?.(r.path)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[#ccc] hover:bg-[#2a2d2e] rounded transition-colors"
+                  >
+                    <FolderOpen size={13} className="text-[#888] flex-shrink-0" />
+                    <span className="truncate">{r.name}</span>
+                    <span className="text-[10px] text-[#555] truncate flex-1 text-right">{r.path}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { GitCommit, User, RefreshCw, GitBranch, Undo2, Copy, ChevronDown, ChevronRight, FileText, FilePlus, FileX, FileDiff, ArrowRight } from 'lucide-react';
-import type { CommitInfo, CommitFileChange } from '../types/git';
-import * as api from '../services/api';
+import { GitBranch, Undo2, Copy, CherryIcon } from 'lucide-react';
+import type { CommitInfo } from '../types/git';
 
 interface CommitHistoryProps {
   commits: CommitInfo[];
@@ -10,8 +9,9 @@ interface CommitHistoryProps {
   onCherryPick?: (commitSha: string, commitMessage: string) => void;
   onRevert?: (commitSha: string, commitMessage: string) => void;
   onSelectCommit?: (sha: string) => void;
-  onViewCommitFileDiff?: (commitSha: string, filePath: string) => void;
   selectedCommitSha?: string | null;
+  branches?: { name: string; is_current: boolean; sha?: string }[];
+  tags?: { name: string; sha?: string }[];
 }
 
 interface ContextMenuState {
@@ -21,6 +21,12 @@ interface ContextMenuState {
   commit: CommitInfo | null;
 }
 
+// Graph colors matching Fork's palette
+const GRAPH_COLORS = [
+  '#ffb74d', '#4fc3f7', '#81c784', '#e57373', '#ba68c8',
+  '#4dd0e1', '#aed581', '#ff8a65', '#f06292', '#7986cb',
+];
+
 export default function CommitHistory({
   commits,
   repoPath,
@@ -28,28 +34,21 @@ export default function CommitHistory({
   onCherryPick,
   onRevert,
   onSelectCommit,
-  onViewCommitFileDiff,
   selectedCommitSha,
+  branches,
+  tags,
 }: CommitHistoryProps) {
-  const [expandedCommit, setExpandedCommit] = useState<string | null>(null);
-  const [commitFiles, setCommitFiles] = useState<Record<string, CommitFileChange[]>>({});
-  const [loadingFiles, setLoadingFiles] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
-    show: false,
-    x: 0,
-    y: 0,
-    commit: null,
+    show: false, x: 0, y: 0, commit: null,
   });
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close context menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setContextMenu((prev) => ({ ...prev, show: false }));
+        setContextMenu(prev => ({ ...prev, show: false }));
       }
     };
-
     if (contextMenu.show) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -58,253 +57,168 @@ export default function CommitHistory({
 
   const handleContextMenu = (e: React.MouseEvent, commit: CommitInfo) => {
     e.preventDefault();
-    setContextMenu({
-      show: true,
-      x: e.clientX,
-      y: e.clientY,
-      commit,
-    });
+    setContextMenu({ show: true, x: e.clientX, y: e.clientY, commit });
   };
 
-  const handleCopysha = () => {
-    if (contextMenu.commit) {
-      navigator.clipboard.writeText(contextMenu.commit.sha);
-      setContextMenu((prev) => ({ ...prev, show: false }));
-    }
-  };
+  const getGraphColor = (idx: number) => GRAPH_COLORS[idx % GRAPH_COLORS.length];
 
-  const handleCherryPickClick = () => {
-    if (contextMenu.commit && onCherryPick) {
-      onCherryPick(contextMenu.commit.sha, contextMenu.commit.message);
-      setContextMenu((prev) => ({ ...prev, show: false }));
-    }
-  };
-
-  const handleRevertClick = () => {
-    if (contextMenu.commit && onRevert) {
-      onRevert(contextMenu.commit.sha, contextMenu.commit.message);
-      setContextMenu((prev) => ({ ...prev, show: false }));
-    }
-  };
-
-  const toggleExpand = async (sha: string) => {
-    if (expandedCommit === sha) {
-      setExpandedCommit(null);
-      return;
-    }
-
-    setExpandedCommit(sha);
-    onSelectCommit?.(sha);
-
-    // Load file changes for this commit if not cached
-    if (!commitFiles[sha]) {
-      setLoadingFiles(sha);
-      try {
-        const files = await api.getCommitFileChanges(repoPath, sha);
-        setCommitFiles((prev) => ({ ...prev, [sha]: files }));
-      } catch (err) {
-        console.error('Failed to load commit file changes:', err);
-        setCommitFiles((prev) => ({ ...prev, [sha]: [] }));
-      } finally {
-        setLoadingFiles(null);
+  // Find branch labels for a commit
+  const getBranchLabels = (sha: string) => {
+    const labels: { name: string; type: 'branch' | 'tag'; isCurrent: boolean }[] = [];
+    branches?.forEach(b => {
+      if (b.sha === sha || (commits[0]?.sha === sha && b.is_current)) {
+        labels.push({ name: b.name, type: 'branch', isCurrent: b.is_current });
       }
-    }
+    });
+    tags?.forEach(t => {
+      if (t.sha === sha) {
+        labels.push({ name: t.name, type: 'tag', isCurrent: false });
+      }
+    });
+    return labels;
   };
 
-  const getFileStatusIcon = (status: string) => {
-    switch (status) {
-      case 'added':
-        return <FilePlus size={14} className="text-green-500" />;
-      case 'deleted':
-        return <FileX size={14} className="text-red-500" />;
-      case 'renamed':
-        return <ArrowRight size={14} className="text-blue-500" />;
-      case 'copied':
-        return <FileDiff size={14} className="text-purple-500" />;
-      default:
-        return <FileText size={14} className="text-yellow-500" />;
+  // Format date to shorter form
+  const formatDate = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = d.getDate();
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const month = months[d.getMonth()];
+      const year = d.getFullYear();
+      const h = d.getHours().toString().padStart(2,'0');
+      const m = d.getMinutes().toString().padStart(2,'0');
+      return `${day} ${month} ${year} ${h}:${m}`;
+    } catch {
+      return dateStr;
     }
-  };
-
-  const getFileStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      added: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
-      modified: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300',
-      deleted: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
-      renamed: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
-      copied: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300',
-    };
-    const label: Record<string, string> = {
-      added: 'A',
-      modified: 'M',
-      deleted: 'D',
-      renamed: 'R',
-      copied: 'C',
-    };
-    return (
-      <span
-        className={`inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold ${colors[status] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
-      >
-        {label[status] || '?'}
-      </span>
-    );
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="min-h-[3rem] border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
-        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <GitCommit size={18} />
-          커밋 히스토리 ({commits.length})
-        </h3>
-        <button
-          onClick={onRefresh}
-          className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          title="새로고침"
-        >
-          <RefreshCw size={16} />
-        </button>
+    <div className="flex flex-col h-full bg-[#1e1e1e]">
+      {/* Column headers */}
+      <div className="flex items-center h-[24px] bg-[#252526] border-b border-[#3c3c3c] text-[10px] font-semibold text-[#888] uppercase tracking-wider select-none flex-shrink-0">
+        <div className="w-[50px] text-center">Graph</div>
+        <div className="flex-1 px-2">Description</div>
+        <div className="w-[120px] px-2">Author</div>
+        <div className="w-[140px] px-2">Date</div>
+        <div className="w-[70px] px-2 text-right">SHA</div>
       </div>
 
+      {/* Commit rows */}
       <div className="flex-1 overflow-y-auto">
         {commits.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-            커밋이 없습니다
+          <div className="flex items-center justify-center h-full text-[#555] text-[12px]">
+            No commits
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {commits.map((commit) => {
-              const isExpanded = expandedCommit === commit.sha;
-              const isSelected = selectedCommitSha === commit.sha;
-              const files = commitFiles[commit.sha];
-              const isLoadingThis = loadingFiles === commit.sha;
+          commits.map((commit, idx) => {
+            const isSelected = selectedCommitSha === commit.sha;
+            const isMerge = commit.parent_ids.length > 1;
+            const color = getGraphColor(idx % 3 === 0 ? 0 : idx % 3 === 1 ? 2 : 1);
+            const branchLabels = getBranchLabels(commit.sha);
 
-              return (
-                <div key={commit.sha}>
-                  {/* Commit row */}
-                  <div
-                    onClick={() => toggleExpand(commit.sha)}
-                    onContextMenu={(e) => handleContextMenu(e, commit)}
-                    className={`p-3 cursor-pointer transition-colors ${
-                      isSelected || isExpanded
-                        ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 border-l-4 border-transparent'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      {/* Expand/collapse chevron */}
-                      <div className="flex-shrink-0 mt-1.5 text-gray-400 dark:text-gray-500">
-                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      </div>
-
-                      {/* Avatar */}
-                      <div className="flex-shrink-0 mt-0.5">
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
-                          {commit.author.charAt(0).toUpperCase()}
-                        </div>
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
-                            {commit.sha.slice(0, 7)}
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {commit.date}
-                          </span>
-                          {commit.parent_ids.length > 1 && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded font-medium">
-                              Merge
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white leading-relaxed truncate">
-                          {commit.message}
-                        </p>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                          <User size={11} />
-                          <span>{commit.author}</span>
-                        </div>
-                      </div>
-                    </div>
+            return (
+              <div
+                key={commit.sha}
+                onClick={() => onSelectCommit?.(commit.sha)}
+                onContextMenu={(e) => handleContextMenu(e, commit)}
+                className={`flex items-center h-[26px] text-[12px] cursor-pointer border-b border-[#2a2a2a] ${
+                  isSelected
+                    ? 'bg-[#094771] text-white'
+                    : 'text-[#ccc] hover:bg-[#2a2d2e]'
+                }`}
+              >
+                {/* Graph column */}
+                <div className="w-[50px] flex items-center justify-center flex-shrink-0">
+                  <div className="relative flex items-center justify-center w-[50px] h-[26px]">
+                    {/* Vertical line */}
+                    {idx > 0 && (
+                      <div className="absolute top-0 w-px h-[13px]" style={{ left: '50%', backgroundColor: color + '60' }} />
+                    )}
+                    {idx < commits.length - 1 && (
+                      <div className="absolute bottom-0 w-px h-[13px]" style={{ left: '50%', backgroundColor: color + '60' }} />
+                    )}
+                    {/* Merge line (right side) */}
+                    {isMerge && idx > 0 && (
+                      <div className="absolute top-[13px] h-px w-[10px]" style={{ left: '50%', backgroundColor: GRAPH_COLORS[2] + '80' }} />
+                    )}
+                    {/* Commit dot */}
+                    <div
+                      className={`relative z-10 rounded-full ${isMerge ? 'w-[8px] h-[8px]' : 'w-[7px] h-[7px]'}`}
+                      style={{
+                        backgroundColor: isMerge ? color : 'transparent',
+                        border: `2px solid ${isSelected ? '#fff' : color}`,
+                      }}
+                    />
                   </div>
-
-                  {/* Expanded: file changes for this commit */}
-                  {isExpanded && (
-                    <div className="bg-gray-50 dark:bg-gray-800/60 border-l-4 border-blue-400 dark:border-blue-600">
-                      {isLoadingThis ? (
-                        <div className="flex items-center gap-2 p-3 text-sm text-gray-500 dark:text-gray-400">
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent" />
-                          파일 변경 사항 로딩 중...
-                        </div>
-                      ) : files && files.length > 0 ? (
-                        <div className="p-2">
-                          <div className="text-[11px] text-gray-500 dark:text-gray-400 uppercase font-semibold px-2 pb-1 flex items-center gap-1.5">
-                            <FileDiff size={12} />
-                            변경된 파일 ({files.length})
-                          </div>
-                          <div className="space-y-0.5">
-                            {files.map((file, idx) => (
-                              <div
-                                key={idx}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onViewCommitFileDiff?.(commit.sha, file.path);
-                                }}
-                                className="group flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                              >
-                                {getFileStatusBadge(file.status)}
-                                {getFileStatusIcon(file.status)}
-                                <span className="flex-1 text-xs text-gray-700 dark:text-gray-300 truncate font-mono" title={file.path}>
-                                  {file.old_path && file.status === 'renamed' ? (
-                                    <>
-                                      <span className="text-gray-400 dark:text-gray-500">{file.old_path}</span>
-                                      <span className="mx-1 text-blue-500">→</span>
-                                      {file.path}
-                                    </>
-                                  ) : (
-                                    file.path
-                                  )}
-                                </span>
-                                {!file.is_binary && (file.additions > 0 || file.deletions > 0) && (
-                                  <span className="flex items-center gap-1 text-[11px] font-mono flex-shrink-0">
-                                    {file.additions > 0 && (
-                                      <span className="text-green-600 dark:text-green-400">+{file.additions}</span>
-                                    )}
-                                    {file.deletions > 0 && (
-                                      <span className="text-red-600 dark:text-red-400">-{file.deletions}</span>
-                                    )}
-                                  </span>
-                                )}
-                                {file.is_binary && (
-                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 italic">binary</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                          {/* Summary bar */}
-                          <div className="mt-1.5 px-2 pt-1.5 border-t border-gray-200 dark:border-gray-700 flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400">
-                            <span>{files.length} 파일</span>
-                            <span className="text-green-600 dark:text-green-400">
-                              +{files.reduce((s, f) => s + f.additions, 0)}
-                            </span>
-                            <span className="text-red-600 dark:text-red-400">
-                              -{files.reduce((s, f) => s + f.deletions, 0)}
-                            </span>
-                          </div>
-                        </div>
-                      ) : files ? (
-                        <div className="p-3 text-sm text-gray-500 dark:text-gray-400 italic">
-                          변경된 파일 없음
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Description + branch labels */}
+                <div className="flex-1 px-2 truncate min-w-0 flex items-center gap-1.5">
+                  {/* Branch / tag labels */}
+                  {branchLabels.map((lbl, li) => (
+                    <span
+                      key={li}
+                      className={`text-[10px] px-1.5 py-0 rounded-sm font-medium flex-shrink-0 leading-[16px] ${
+                        isSelected
+                          ? 'bg-white/20 text-white'
+                          : lbl.isCurrent
+                          ? 'bg-green-700/80 text-green-100'
+                          : lbl.type === 'tag'
+                          ? 'bg-yellow-700/60 text-yellow-200'
+                          : 'bg-blue-700/60 text-blue-200'
+                      }`}
+                    >
+                      {lbl.type === 'branch' ? (
+                        <span className="flex items-center gap-0.5">
+                          <GitBranch size={9} />
+                          {lbl.name}
+                        </span>
+                      ) : (
+                        lbl.name
+                      )}
+                    </span>
+                  ))}
+                  {/* First commit gets HEAD label */}
+                  {idx === 0 && branchLabels.length === 0 && (
+                    <span className={`text-[10px] px-1.5 py-0 rounded-sm font-medium flex-shrink-0 leading-[16px] ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-green-700/80 text-green-100'
+                    }`}>
+                      <span className="flex items-center gap-0.5">
+                        <GitBranch size={9} />
+                        HEAD
+                      </span>
+                    </span>
+                  )}
+                  {isMerge && (
+                    <span className={`text-[9px] px-1 rounded-sm font-bold flex-shrink-0 ${
+                      isSelected ? 'bg-white/15 text-white/80' : 'bg-purple-800/50 text-purple-300'
+                    }`}>
+                      M
+                    </span>
+                  )}
+                  <span className="truncate">{commit.message}</span>
+                </div>
+
+                {/* Author */}
+                <div className={`w-[120px] px-2 truncate flex-shrink-0 ${isSelected ? 'text-white/80' : 'text-[#888]'}`}>
+                  {commit.author}
+                </div>
+
+                {/* Date */}
+                <div className={`w-[140px] px-2 truncate flex-shrink-0 font-mono text-[11px] ${isSelected ? 'text-white/70' : 'text-[#666]'}`}>
+                  {formatDate(commit.date)}
+                </div>
+
+                {/* SHA */}
+                <div className={`w-[70px] px-2 font-mono text-[11px] flex-shrink-0 text-right ${isSelected ? 'text-white/60' : 'text-[#555]'}`}>
+                  {commit.sha.slice(0, 7)}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -312,28 +226,35 @@ export default function CommitHistory({
       {contextMenu.show && (
         <div
           ref={menuRef}
-          className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50 min-w-[200px]"
-          style={{
-            left: `${contextMenu.x}px`,
-            top: `${contextMenu.y}px`,
-          }}
+          className="fixed bg-[#252526] border border-[#3c3c3c] rounded shadow-xl py-1 z-50 min-w-[200px]"
+          style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
         >
           <button
-            onClick={handleCopysha}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+            onClick={() => {
+              if (contextMenu.commit) {
+                navigator.clipboard.writeText(contextMenu.commit.sha);
+                setContextMenu(prev => ({ ...prev, show: false }));
+              }
+            }}
+            className="w-full px-4 py-1.5 text-left text-[13px] hover:bg-[#094771] flex items-center gap-2 text-[#ccc]"
           >
-            <Copy size={16} />
-            SHA 복사
+            <Copy size={13} />
+            Copy SHA
           </button>
 
           {onCherryPick && (
             <>
-              <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
+              <div className="h-px bg-[#3c3c3c] my-0.5 mx-2" />
               <button
-                onClick={handleCherryPickClick}
-                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400"
+                onClick={() => {
+                  if (contextMenu.commit) {
+                    onCherryPick(contextMenu.commit.sha, contextMenu.commit.message);
+                    setContextMenu(prev => ({ ...prev, show: false }));
+                  }
+                }}
+                className="w-full px-4 py-1.5 text-left text-[13px] hover:bg-[#094771] flex items-center gap-2 text-[#81c784]"
               >
-                <GitBranch size={16} />
+                <GitBranch size={13} />
                 Cherry-pick
               </button>
             </>
@@ -341,10 +262,15 @@ export default function CommitHistory({
 
           {onRevert && (
             <button
-              onClick={handleRevertClick}
-              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400"
+              onClick={() => {
+                if (contextMenu.commit) {
+                  onRevert(contextMenu.commit.sha, contextMenu.commit.message);
+                  setContextMenu(prev => ({ ...prev, show: false }));
+                }
+              }}
+              className="w-full px-4 py-1.5 text-left text-[13px] hover:bg-[#094771] flex items-center gap-2 text-[#ffb74d]"
             >
-              <Undo2 size={16} />
+              <Undo2 size={13} />
               Revert
             </button>
           )}

@@ -11,6 +11,16 @@ interface TabBarProps {
   maxTabs?: number;
 }
 
+// Color palette for tab indicators (like Fork's colored dots)
+const TAB_COLORS = [
+  '#e57373', '#81c784', '#64b5f6', '#ffb74d', '#ba68c8',
+  '#4dd0e1', '#ff8a65', '#aed581', '#f06292', '#7986cb',
+];
+
+function getTabColor(index: number) {
+  return TAB_COLORS[index % TAB_COLORS.length];
+}
+
 export default function TabBar({
   tabs,
   activeTabId,
@@ -26,14 +36,12 @@ export default function TabBar({
   } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close context menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
         setContextMenu(null);
       }
     };
-
     if (contextMenu) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -47,9 +55,7 @@ export default function TabBar({
 
   const handleCloseOthers = (tabId: string) => {
     tabs.forEach(tab => {
-      if (tab.id !== tabId) {
-        onTabClose(tab.id);
-      }
+      if (tab.id !== tabId) onTabClose(tab.id);
     });
     setContextMenu(null);
   };
@@ -66,95 +72,94 @@ export default function TabBar({
   };
 
   return (
-    <div className="flex items-center bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+    <div className="flex items-center h-[32px] bg-[#2d2d2d] border-b border-[#3c3c3c] overflow-x-auto select-none">
       {/* Tabs */}
       <div className="flex flex-1 min-w-0">
-        {tabs.map((tab) => (
-          <div
-            key={tab.id}
-            onClick={() => onTabSelect(tab.id)}
-            onContextMenu={(e) => handleContextMenu(e, tab.id)}
-            className={`
-              group flex items-center gap-2 px-4 py-2 min-w-[120px] max-w-[200px] 
-              cursor-pointer transition-colors border-r border-gray-200 dark:border-gray-700
-              ${
-                activeTabId === tab.id
-                  ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-750'
-              }
-            `}
-          >
-            <FolderGit2 size={16} className="flex-shrink-0" />
-            <span className="flex-1 truncate text-sm font-medium">
-              {tab.title}
-            </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onTabClose(tab.id);
-              }}
-              className="flex-shrink-0 p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-              title="닫기"
+        {tabs.map((tab, idx) => {
+          const isActive = activeTabId === tab.id;
+          const dotColor = getTabColor(idx);
+
+          return (
+            <div
+              key={tab.id}
+              onClick={() => onTabSelect(tab.id)}
+              onContextMenu={(e) => handleContextMenu(e, tab.id)}
+              className={`group flex items-center gap-2 px-3 h-[32px] min-w-[100px] max-w-[180px] cursor-pointer transition-colors border-r border-[#3c3c3c] ${
+                isActive
+                  ? 'bg-[#1e1e1e] text-white'
+                  : 'bg-[#2d2d2d] text-[#888] hover:text-[#ccc] hover:bg-[#333]'
+              }`}
             >
-              <X size={14} />
-            </button>
-          </div>
-        ))}
+              {/* Colored dot indicator */}
+              <div
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: dotColor }}
+              />
+              <span className="flex-1 truncate text-[12px]">
+                {tab.title}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTabClose(tab.id);
+                }}
+                className="flex-shrink-0 p-0.5 rounded hover:bg-[#555] opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Close Tab"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Add Tab Button */}
+      {/* New Tab button */}
       <button
         onClick={onTabAdd}
         disabled={tabs.length >= maxTabs}
-        className={`
-          flex items-center gap-2 px-4 py-2 border-l border-gray-200 dark:border-gray-700
-          ${
-            tabs.length >= maxTabs
-              ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-750 cursor-pointer'
-          }
-        `}
-        title={tabs.length >= maxTabs ? `최대 ${maxTabs}개 탭` : '새 탭 추가'}
+        className={`flex items-center justify-center w-[32px] h-[32px] border-l border-[#3c3c3c] ${
+          tabs.length >= maxTabs
+            ? 'text-[#555] cursor-not-allowed'
+            : 'text-[#888] hover:text-white hover:bg-[#333] cursor-pointer'
+        }`}
+        title={tabs.length >= maxTabs ? `Max ${maxTabs} tabs` : 'New Tab'}
       >
-        <Plus size={16} />
+        <Plus size={14} />
       </button>
 
       {/* Context Menu */}
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]"
+          className="fixed z-50 bg-[#252526] border border-[#3c3c3c] rounded shadow-xl py-1 min-w-[180px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
           <button
-            onClick={() => {
-              onTabClose(contextMenu.tabId);
-              setContextMenu(null);
-            }}
-            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            onClick={() => { onTabClose(contextMenu.tabId); setContextMenu(null); }}
+            className="w-full px-4 py-1.5 text-left text-[13px] text-[#ccc] hover:bg-[#094771]"
           >
-            탭 닫기
+            Close Tab
           </button>
           <button
             onClick={() => handleCloseOthers(contextMenu.tabId)}
             disabled={tabs.length <= 1}
-            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-1.5 text-left text-[13px] text-[#ccc] hover:bg-[#094771] disabled:text-[#555] disabled:cursor-default"
           >
-            다른 탭 닫기
+            Close Other Tabs
           </button>
           <button
             onClick={() => handleCloseRight(contextMenu.tabId)}
             disabled={tabs.findIndex(t => t.id === contextMenu.tabId) === tabs.length - 1}
-            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-1.5 text-left text-[13px] text-[#ccc] hover:bg-[#094771] disabled:text-[#555] disabled:cursor-default"
           >
-            오른쪽 탭 닫기
+            Close Tabs to the Right
           </button>
-          <hr className="my-1 border-gray-200 dark:border-gray-700" />
+          <div className="h-px bg-[#3c3c3c] my-1 mx-2" />
           <button
             onClick={handleCloseAll}
-            className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="w-full px-4 py-1.5 text-left text-[13px] text-[#e57373] hover:bg-[#094771]"
           >
-            모든 탭 닫기
+            Close All Tabs
           </button>
         </div>
       )}
