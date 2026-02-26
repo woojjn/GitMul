@@ -267,14 +267,16 @@ export default function FileChanges({
           return next;
         });
       }
-      // Do NOT update anchor on shift-click (anchor stays at original Ctrl-click point)
+      // Do NOT update anchor on shift-click (anchor stays at original point)
       return;
     }
 
-    /* ---- Plain click: just view the file (no selection change) ---- */
+    /* ---- Plain click: view file diff (no selection change) ---- */
     if (paths.length === 1) {
       onFileClick(clickedPath, staged);
       setViewingFile(clickedPath);
+      // Update anchor so Shift+click can use the viewed file as range origin
+      anchor.current = clickedPath;
     }
     // Plain click on folder → just expand/collapse (handled separately)
   }, [onFileClick]);
