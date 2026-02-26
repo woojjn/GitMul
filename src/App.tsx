@@ -246,7 +246,9 @@ function App() {
     if (uiState?.showConflictResolver) return <ConflictResolver repoPath={repoPath} onClose={() => updateTabUIState(activeTabId!, { showConflictResolver: false })} onResolved={refreshRepository} />;
     if (uiState?.showBundleManager) return <BundleManager repoPath={repoPath} onClose={() => updateTabUIState(activeTabId!, { showBundleManager: false })} onSuccess={showSuccess} onError={showError} />;
     if (uiState?.fileHistoryPath) return <FileHistory repoPath={repoPath} filePath={uiState.fileHistoryPath} onClose={() => updateTabUIState(activeTabId!, { fileHistoryPath: null })} />;
-    if (uiState?.selectedFile) return <DiffViewer repoPath={repoPath} filePath={uiState.selectedFile.path} staged={uiState.selectedFile.staged} onClose={() => updateTabUIState(activeTabId!, { selectedFile: null })} />;
+    // When in 'changes' view, selectedFile is handled by the master-detail layout (right pane),
+    // not as a full-screen overlay. Only show overlay DiffViewer in 'commits' view.
+    if (uiState?.selectedFile && sidebarView !== 'changes') return <DiffViewer repoPath={repoPath} filePath={uiState.selectedFile.path} staged={uiState.selectedFile.staged} onClose={() => updateTabUIState(activeTabId!, { selectedFile: null })} />;
 
     return null;
   };
