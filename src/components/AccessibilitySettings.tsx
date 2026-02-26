@@ -242,14 +242,38 @@ export default function AccessibilitySettings({ isOpen, onClose }: Accessibility
 
           {/* Preview Text */}
           <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-            <p className="text-gray-700 dark:text-gray-300 mb-2">
-              {settings.language === 'ko'
-                ? '미리보기: 이 텍스트는 현재 설정이 적용된 모습입니다.'
-                : 'Preview: This text shows the current settings applied.'}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider font-semibold">
+              {settings.language === 'ko' ? '미리보기' : 'Live Preview'}
             </p>
-            <code className="text-sm text-blue-600 dark:text-blue-400">
-              {settings.language === 'ko' ? '코드 예시: console.log("안녕하세요");' : 'Code example: console.log("Hello");'}
-            </code>
+            <div
+              style={{
+                fontFamily: (() => {
+                  const map: Record<string, string> = {
+                    default: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    gothic: '"Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif',
+                    serif: '"Noto Serif KR", Batang, Georgia, serif',
+                    mono: '"JetBrains Mono", "Fira Code", Consolas, monospace',
+                  };
+                  return map[settings.fontFamily];
+                })(),
+                fontSize: { small: '12px', normal: '14px', large: '16px', xlarge: '18px' }[settings.fontSize],
+                lineHeight: { tight: '1.25', normal: '1.5', relaxed: '1.75', loose: '2.0' }[settings.lineHeight],
+              }}
+            >
+              <p className="text-gray-700 dark:text-gray-300 mb-2">
+                {settings.language === 'ko'
+                  ? '미리보기: 이 텍스트는 현재 설정이 적용된 모습입니다. 글자 크기, 폰트, 줄 간격이 반영됩니다.'
+                  : 'Preview: This text shows the current settings applied. Font size, family, and line height are reflected.'}
+              </p>
+              <code className="text-blue-600 dark:text-blue-400">
+                {settings.language === 'ko' ? '코드 예시: console.log("안녕하세요");' : 'Code example: console.log("Hello");'}
+              </code>
+            </div>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-2">
+              {settings.language === 'ko'
+                ? `현재: 크기=${settings.fontSize}, 폰트=${settings.fontFamily}, 줄간격=${settings.lineHeight}`
+                : `Current: size=${settings.fontSize}, font=${settings.fontFamily}, line-height=${settings.lineHeight}`}
+            </p>
           </div>
         </div>
 
