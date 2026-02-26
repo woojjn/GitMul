@@ -43,6 +43,28 @@ export function useGitOperations({
     }
   };
 
+  /** Stage multiple files in one batch (parallel API calls, single refresh). */
+  const stageFiles = async (paths: string[]) => {
+    if (!activeTab?.dataState.currentRepo || paths.length === 0) return;
+    try {
+      await api.stageFiles(activeTab.dataState.currentRepo.path, paths);
+      await refreshRepository();
+    } catch (error) {
+      onError(`파일 스테이징 실패: ${error}`);
+    }
+  };
+
+  /** Unstage multiple files in one batch (parallel API calls, single refresh). */
+  const unstageFiles = async (paths: string[]) => {
+    if (!activeTab?.dataState.currentRepo || paths.length === 0) return;
+    try {
+      await api.unstageFiles(activeTab.dataState.currentRepo.path, paths);
+      await refreshRepository();
+    } catch (error) {
+      onError(`파일 언스테이징 실패: ${error}`);
+    }
+  };
+
   /** Stage all modified files. */
   const stageAll = async () => {
     if (!activeTab?.dataState.currentRepo) return;
@@ -71,7 +93,7 @@ export function useGitOperations({
     }
   };
 
-  return { stageFile, unstageFile, stageAll, commit };
+  return { stageFile, unstageFile, stageFiles, unstageFiles, stageAll, commit };
 }
 
 export type GitOperations = ReturnType<typeof useGitOperations>;

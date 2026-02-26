@@ -77,7 +77,7 @@ function App() {
   });
 
   // Git operations
-  const { stageFile, unstageFile, stageAll, commit } = useGitOperations({
+  const { stageFile, unstageFile, stageFiles, unstageFiles, stageAll, commit } = useGitOperations({
     activeTab,
     refreshRepository,
     onSuccess: showSuccess,
@@ -267,6 +267,8 @@ function App() {
             files={dataState.fileChanges}
             onStage={stageFile}
             onUnstage={unstageFile}
+            onStageFiles={stageFiles}
+            onUnstageFiles={unstageFiles}
             onStageAll={stageAll}
             onFileClick={(path, staged) =>
               updateTabUIState(activeTabId!, { selectedFile: { path, staged } })

@@ -15,6 +15,8 @@ interface FileChangesProps {
   onRefresh: () => void;
   onStage: (path: string) => Promise<void>;
   onUnstage: (path: string) => Promise<void>;
+  onStageFiles?: (paths: string[]) => Promise<void>;
+  onUnstageFiles?: (paths: string[]) => Promise<void>;
   onStageAll: () => Promise<void>;
   onFileClick: (path: string, staged: boolean) => void;
   onCommit?: (message: string) => void;
@@ -143,7 +145,7 @@ function flattenTreePaths(nodes: TreeNode[], expanded: Set<string>, prefix: stri
 /* ================================================================== */
 
 export default function FileChanges({
-  files, onRefresh, onStage, onUnstage, onStageAll, onFileClick, onCommit,
+  files, onRefresh, onStage, onUnstage, onStageFiles, onUnstageFiles, onStageAll, onFileClick, onCommit,
 }: FileChangesProps) {
   const [unstagedOpen, setUnstagedOpen] = useState(true);
   const [stagedOpen, setStagedOpen] = useState(true);
@@ -277,18 +279,34 @@ export default function FileChanges({
     // Plain click on folder → just expand/collapse (handled separately)
   }, [onFileClick]);
 
-  /* ---- Batch actions ---- */
+  /* ---- Batch actions (use parallel batch API when available, fallback to sequential) ---- */
   const stageSelected = useCallback(async () => {
-    for (const p of selUnstaged) { try { await onStage(p); } catch {} }
+    const paths = Array.from(selUnstaged);
+    if (paths.length === 0) return;
+    try {
+      if (onStageFiles) {
+        await onStageFiles(paths);
+      } else {
+        await Promise.all(paths.map(p => onStage(p)));
+      }
+    } catch {}
     setSelUnstaged(new Set());
     anchorUnstaged.current = null;
-  }, [selUnstaged, onStage]);
+  }, [selUnstaged, onStage, onStageFiles]);
 
   const unstageSelected = useCallback(async () => {
-    for (const p of selStaged) { try { await onUnstage(p); } catch {} }
+    const paths = Array.from(selStaged);
+    if (paths.length === 0) return;
+    try {
+      if (onUnstageFiles) {
+        await onUnstageFiles(paths);
+      } else {
+        await Promise.all(paths.map(p => onUnstage(p)));
+      }
+    } catch {}
     setSelStaged(new Set());
     anchorStaged.current = null;
-  }, [selStaged, onUnstage]);
+  }, [selStaged, onUnstage, onUnstageFiles]);
 
   const selectAll = useCallback((
     fileList: FileStatus[],
@@ -529,7 +547,11 @@ export default function FileChanges({
             <span
               onClick={(e) => {
                 e.stopPropagation();
-                staged ? fileList.forEach(f => onUnstage(f.path)) : onStageAll();
+                staged
+                  ? (onUnstageFiles
+                      ? onUnstageFiles(fileList.map(f => f.path))
+                      : Promise.all(fileList.map(f => onUnstage(f.path))))
+                  : onStageAll();
               }}
               className={`text-[11px] font-medium cursor-pointer transition-colors
                 ${staged ? 'text-[#e57373] hover:text-[#ef9a9a]' : 'text-[#73c991] hover:text-[#a5d6a7]'}`}

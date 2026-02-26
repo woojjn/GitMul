@@ -116,6 +116,14 @@ export const unstageFile = (repoPath: string, path: string) =>
 export const stageAll = (repoPath: string) =>
   invoke<void>('stage_all', { repoPath });
 
+/** Stage multiple files in parallel (single batch). */
+export const stageFiles = (repoPath: string, paths: string[]) =>
+  Promise.all(paths.map(p => invoke<void>('stage_file', { repoPath, path: p })));
+
+/** Unstage multiple files in parallel (single batch). */
+export const unstageFiles = (repoPath: string, paths: string[]) =>
+  Promise.all(paths.map(p => invoke<void>('unstage_file', { repoPath, path: p })));
+
 export const createCommit = (repoPath: string, message: string) =>
   invoke<string>('create_commit', { repoPath, message });
 
