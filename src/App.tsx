@@ -425,8 +425,24 @@ function App() {
           onFetch={handleFetch}
           onPull={handlePull}
           onPush={handlePush}
-          onCommit={handleOpenCommitDialog}
-          onStageAll={stageAll}
+          onOpenIn={async () => {
+            if (!dataState.currentRepo) return;
+            try {
+              await api.openInExplorer(dataState.currentRepo.path);
+              showSuccess('Opened in file explorer');
+            } catch (err) {
+              showError(`Failed to open: ${err}`);
+            }
+          }}
+          onConsole={async () => {
+            if (!dataState.currentRepo) return;
+            try {
+              await api.openTerminal(dataState.currentRepo.path);
+              showSuccess('Terminal opened');
+            } catch (err) {
+              showError(`Failed to open terminal: ${err}`);
+            }
+          }}
         />
       )}
 

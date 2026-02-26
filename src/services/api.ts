@@ -378,3 +378,13 @@ export const openFileDialog = (title = '파일 선택', filters?: { name: string
 
 export const saveFileDialog = (title = '파일 저장', defaultPath?: string, filters?: { name: string; extensions: string[] }[]) =>
   saveDialog({ title, defaultPath, filters });
+
+// ============================================================================
+// Shell / System Integration
+// ============================================================================
+
+export const openInExplorer = (repoPath: string) =>
+  invoke<void>('open_in_explorer', { repoPath });
+
+export const openTerminal = (repoPath: string) =>
+  invoke<void>('open_terminal', { repoPath });

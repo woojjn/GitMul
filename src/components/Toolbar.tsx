@@ -1,4 +1,4 @@
-import { Download, Upload, RefreshCw, GitBranch, GitMerge, Archive, Tag, RotateCcw, Package, GitCommit, Terminal, Eye, Plus, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { Download, Upload, RefreshCw, GitBranch, GitMerge, Archive, Tag, RotateCcw, Package, Terminal, ExternalLink, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 import type { TabUIState } from '../types/tab';
 
 interface ToolbarProps {
@@ -12,8 +12,8 @@ interface ToolbarProps {
   onFetch: () => void;
   onPull: () => void;
   onPush: () => void;
-  onCommit: () => void;
-  onStageAll: () => void;
+  onOpenIn: () => void;
+  onConsole: () => void;
 }
 
 interface ToolbarButtonProps {
@@ -67,8 +67,8 @@ export default function Toolbar({
   onFetch,
   onPull,
   onPush,
-  onCommit,
-  onStageAll,
+  onOpenIn,
+  onConsole,
 }: ToolbarProps) {
   const resetViews = () => ({
     showBranchManager: false,
@@ -140,19 +140,7 @@ export default function Toolbar({
 
       <ToolbarSeparator />
 
-      {/* Right group: Commit, Branch, Merge, Tag */}
-      <ToolbarButton
-        icon={<GitCommit size={16} />}
-        label="Commit"
-        onClick={onCommit}
-        disabled={!hasRepo}
-      />
-      <ToolbarButton
-        icon={<Plus size={16} />}
-        label="Stage All"
-        onClick={onStageAll}
-        disabled={!hasRepo}
-      />
+      {/* Right group: Branch, Merge, Tag, Open in, Console */}
       <ToolbarButton
         icon={<GitBranch size={16} />}
         label="Branch"
@@ -173,6 +161,22 @@ export default function Toolbar({
         onClick={() => toggleView('showTagManager')}
         disabled={!hasRepo}
         active={uiState?.showTagManager}
+      />
+
+      <ToolbarSeparator />
+
+      {/* Open in + Console (Fork-style) */}
+      <ToolbarButton
+        icon={<ExternalLink size={16} />}
+        label="Open in"
+        onClick={onOpenIn}
+        disabled={!hasRepo}
+      />
+      <ToolbarButton
+        icon={<Terminal size={16} />}
+        label="Console"
+        onClick={onConsole}
+        disabled={!hasRepo}
       />
 
       <ToolbarSeparator />

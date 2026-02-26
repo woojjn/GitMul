@@ -387,6 +387,15 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, any>): Pr
     case 'clone_from_bundle':
       return `번들에서 클론 완료: ${args?.targetPath ?? '/tmp/cloned'}` as unknown as T;
 
+    // ---- Shell / System Integration ----
+    case 'open_in_explorer':
+      console.log(`[Mock] Open in Explorer: ${args?.repoPath}`);
+      return undefined as unknown as T;
+
+    case 'open_terminal':
+      console.log(`[Mock] Open Terminal at: ${args?.repoPath}`);
+      return undefined as unknown as T;
+
     default:
       console.warn(`[Mock IPC] Unknown command: ${cmd}`, args);
       return undefined as unknown as T;
