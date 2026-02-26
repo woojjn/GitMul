@@ -152,12 +152,15 @@ export const MOCK_FILE_CHANGES: FileStatus[] = [
   { path: 'src/components/CommitHistory.tsx', status: 'modified', staged: true },
   { path: 'src/services/api.ts', status: 'modified', staged: true },
   { path: 'src/components/NewFeature.tsx', status: 'new file', staged: true },
+  { path: 'src/assets/icon.png', status: 'modified', staged: true },
   { path: 'src/hooks/useAuth.ts', status: 'modified', staged: false },
   { path: 'src/utils/helpers.ts', status: 'modified', staged: false },
   { path: 'README.md', status: 'modified', staged: false },
   { path: 'tests/auth.test.ts', status: 'new file', staged: false },
   { path: 'src/old-module.ts', status: 'deleted', staged: false },
   { path: 'src/assets/logo-kr.png', status: 'new file', staged: false },
+  { path: 'src/assets/banner.jpg', status: 'modified', staged: false },
+  { path: 'src/assets/old-icon.png', status: 'deleted', staged: false },
   { path: 'src/components/한글컴포넌트.tsx', status: 'modified', staged: false },
 ];
 

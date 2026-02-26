@@ -9,6 +9,7 @@
  */
 
 import * as mock from './data';
+import { getMockImageDiff } from './imageData';
 import type { ParsedDiff } from '../types/git';
 
 // ============================================================================
@@ -208,7 +209,7 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, any>): Pr
     }
 
     case 'get_image_diff':
-      return { old_image: null, new_image: null, is_image: true, file_path: args?.filePath ?? '' } as unknown as T;
+      return getMockImageDiff(args?.filePath ?? '') as unknown as T;
 
     case 'get_image_at_commit':
       return null as unknown as T;
