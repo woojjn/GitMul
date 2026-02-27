@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { GitBranch, Undo2, Copy, CherryIcon } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { GitBranch, Undo2, Copy } from 'lucide-react';
 import type { CommitInfo } from '../types/git';
 
 interface CommitHistoryProps {
@@ -10,8 +10,8 @@ interface CommitHistoryProps {
   onRevert?: (commitSha: string, commitMessage: string) => void;
   onSelectCommit?: (sha: string) => void;
   selectedCommitSha?: string | null;
-  branches?: { name: string; is_current: boolean; sha?: string }[];
-  tags?: { name: string; sha?: string }[];
+  branches?: { name: string; is_current: boolean; sha?: string; commit_sha?: string }[];
+  tags?: { name: string; sha?: string; target?: string }[];
 }
 
 interface ContextMenuState {
@@ -21,11 +21,190 @@ interface ContextMenuState {
   commit: CommitInfo | null;
 }
 
-// Graph colors matching Fork's palette
+// ── Graph layout types ──────────────────────────────────────────────────
+
+/** A line segment connecting two points in the graph. */
+interface GraphLine {
+  fromCol: number;
+  toCol: number;
+  colorIdx: number;
+}
+
+/** Per-row layout info produced by the lane algorithm. */
+interface GraphRow {
+  /** Column (0-based) this commit sits in. */
+  column: number;
+  /** Color index for this commit dot. */
+  colorIdx: number;
+  /** Lines going DOWN from this row (bottom half: midY → ROW_H).
+   *  toCol is where the line arrives at the top of the NEXT row. */
+  linesDown: GraphLine[];
+  /** Lines coming INTO this row (top half: 0 → midY).
+   *  These are copied from the previous row's linesDown. */
+  linesIn: GraphLine[];
+  /** Total lane count at this row. */
+  laneCount: number;
+}
+
+// Graph colors matching Fork / GitKraken palette
 const GRAPH_COLORS = [
   '#ffb74d', '#4fc3f7', '#81c784', '#e57373', '#ba68c8',
   '#4dd0e1', '#aed581', '#ff8a65', '#f06292', '#7986cb',
 ];
+
+// ── Lane assignment algorithm ───────────────────────────────────────────
+
+function buildGraphLayout(commits: CommitInfo[]): GraphRow[] {
+  if (commits.length === 0) return [];
+
+  const rows: GraphRow[] = [];
+
+  // activeLanes[col] = SHA that lane is waiting for, or null if free.
+  let activeLanes: (string | null)[] = [];
+  // Track which color each lane uses so colors stay stable while lane lives.
+  let laneColors: number[] = [];
+  let nextColor = 0;
+
+  for (let i = 0; i < commits.length; i++) {
+    const commit = commits[i];
+    const commitSha = commit.sha;
+
+    // ── Snapshot the incoming lanes (before processing this commit) ──
+    const incomingLanes = activeLanes.slice();
+    const incomingColors = laneColors.slice();
+
+    // 1. Find which column this commit lands in.
+    let col = activeLanes.indexOf(commitSha);
+    let colorIdx: number;
+
+    if (col === -1) {
+      // Not expected in any lane — allocate a new one.
+      const free = activeLanes.indexOf(null);
+      if (free !== -1) {
+        col = free;
+      } else {
+        col = activeLanes.length;
+        activeLanes.push(null);
+        laneColors.push(0);
+      }
+      colorIdx = nextColor++;
+      laneColors[col] = colorIdx;
+    } else {
+      colorIdx = laneColors[col];
+    }
+
+    // 2. Mark this lane as "arrived" (clear it).
+    activeLanes[col] = null;
+
+    // 3. Collapse any duplicate lanes waiting for the same SHA.
+    for (let l = 0; l < activeLanes.length; l++) {
+      if (l !== col && activeLanes[l] === commitSha) {
+        activeLanes[l] = null;
+      }
+    }
+
+    // 4. Assign parents to lanes.
+    commit.parent_ids.forEach((parentSha, pIdx) => {
+      const existing = activeLanes.indexOf(parentSha);
+      if (existing !== -1) {
+        // Parent already has a lane reserved — keep it.
+        return;
+      }
+      if (pIdx === 0) {
+        // First parent: continue in same column.
+        activeLanes[col] = parentSha;
+        laneColors[col] = colorIdx;
+      } else {
+        // Additional parents (merge source): allocate a lane.
+        const free = activeLanes.indexOf(null);
+        const pColor = nextColor++;
+        if (free !== -1) {
+          activeLanes[free] = parentSha;
+          laneColors[free] = pColor;
+        } else {
+          activeLanes.push(parentSha);
+          laneColors.push(pColor);
+        }
+      }
+    });
+
+    // 5. Build lines going DOWN from this row.
+    //    For every active lane after processing, draw a line from
+    //    where that lane's SHA was BEFORE (fromCol) to where it is NOW (toCol).
+    const linesDown: GraphLine[] = [];
+    const usedFrom = new Set<number>();
+
+    for (let l = 0; l < activeLanes.length; l++) {
+      if (activeLanes[l] === null) continue;
+      const laneSha = activeLanes[l]!;
+      const lColor = laneColors[l];
+
+      // Where was this SHA before? Check incoming lanes.
+      let fromCol = -1;
+      for (let k = 0; k < incomingLanes.length; k++) {
+        if (incomingLanes[k] === laneSha && !usedFrom.has(k)) {
+          fromCol = k;
+          usedFrom.add(k);
+          break;
+        }
+      }
+
+      if (fromCol === -1) {
+        // New lane originated from this commit's column.
+        fromCol = col;
+      }
+
+      linesDown.push({ fromCol, toCol: l, colorIdx: lColor });
+    }
+
+    // 6. Build lines coming IN (top half).
+    //    These connect from the previous row's toCol to this row's fromCol.
+    //    For the first row, no incoming lines.
+    const linesIn: GraphLine[] = [];
+    if (i > 0) {
+      const prevRow = rows[i - 1];
+      // Each line from the previous row arrives at toCol.
+      // Draw a line from toCol at y=0 to toCol at y=midY.
+      // But we also need to handle merging lanes:
+      // If a lane in prevRow.linesDown goes to toCol, and that toCol
+      // is now the column of a different lane (or this commit), we need
+      // to draw the arriving line.
+      for (const prevLine of prevRow.linesDown) {
+        linesIn.push({
+          fromCol: prevLine.toCol,
+          toCol: prevLine.toCol,
+          colorIdx: prevLine.colorIdx,
+        });
+      }
+    }
+
+    // 7. Trim trailing null lanes.
+    while (activeLanes.length > 0 && activeLanes[activeLanes.length - 1] === null) {
+      activeLanes.pop();
+      laneColors.pop();
+    }
+
+    rows.push({
+      column: col,
+      colorIdx,
+      linesDown,
+      linesIn,
+      laneCount: Math.max(activeLanes.length, col + 1),
+    });
+  }
+
+  return rows;
+}
+
+// ── Constants ───────────────────────────────────────────────────────────
+
+const ROW_H = 26;
+const LANE_W = 14;
+const PAD_LEFT = 10;
+const DOT_R = 3.5;
+const DOT_R_MERGE = 4;
+
+// ── Component ───────────────────────────────────────────────────────────
 
 export default function CommitHistory({
   commits,
@@ -42,6 +221,14 @@ export default function CommitHistory({
     show: false, x: 0, y: 0, commit: null,
   });
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const graphRows = useMemo(() => buildGraphLayout(commits), [commits]);
+
+  const maxLanes = useMemo(
+    () => graphRows.reduce((m, r) => Math.max(m, r.laneCount), 1),
+    [graphRows],
+  );
+  const graphColWidth = Math.max(50, PAD_LEFT + maxLanes * LANE_W + 8);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -60,25 +247,36 @@ export default function CommitHistory({
     setContextMenu({ show: true, x: e.clientX, y: e.clientY, commit });
   };
 
-  const getGraphColor = (idx: number) => GRAPH_COLORS[idx % GRAPH_COLORS.length];
+  const getColor = (idx: number) => GRAPH_COLORS[idx % GRAPH_COLORS.length];
 
-  // Find branch labels for a commit
+  // ── Branch / tag labels ───────────────────────────────────────────────
+
   const getBranchLabels = (sha: string) => {
     const labels: { name: string; type: 'branch' | 'tag'; isCurrent: boolean }[] = [];
+
+    const shaMatch = (a: string, b: string) => {
+      if (!a || !b) return false;
+      if (a === b) return true;
+      const min = Math.min(a.length, b.length);
+      if (min >= 7) return a.slice(0, min) === b.slice(0, min);
+      return false;
+    };
+
     branches?.forEach(b => {
-      if (b.sha === sha || (commits[0]?.sha === sha && b.is_current)) {
+      const bSha = b.sha || b.commit_sha || '';
+      if (shaMatch(bSha, sha) || (commits[0]?.sha === sha && b.is_current)) {
         labels.push({ name: b.name, type: 'branch', isCurrent: b.is_current });
       }
     });
     tags?.forEach(t => {
-      if (t.sha === sha) {
+      const tSha = t.sha || t.target || '';
+      if (shaMatch(tSha, sha)) {
         labels.push({ name: t.name, type: 'tag', isCurrent: false });
       }
     });
     return labels;
   };
 
-  // Format date to shorter form
   const formatDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
@@ -95,11 +293,94 @@ export default function CommitHistory({
     }
   };
 
+  // ── SVG graph cell for one row ────────────────────────────────────────
+
+  const laneX = (lane: number) => PAD_LEFT + lane * LANE_W + LANE_W / 2;
+  const midY = ROW_H / 2;
+
+  const renderGraphCell = (row: GraphRow, idx: number) => {
+    const isMerge = commits[idx].parent_ids.length > 1;
+    const isSelected = selectedCommitSha === commits[idx].sha;
+    const cx = laneX(row.column);
+    const dotColor = getColor(row.colorIdx);
+
+    return (
+      <svg
+        width={graphColWidth}
+        height={ROW_H}
+        className="flex-shrink-0"
+        style={{ display: 'block' }}
+      >
+        {/* ── Top half: incoming lines (0 → midY) ── */}
+        {row.linesIn.map((line, li) => {
+          const x = laneX(line.fromCol);
+          const color = getColor(line.colorIdx);
+          return (
+            <line
+              key={`in-${li}`}
+              x1={x} y1={0}
+              x2={x} y2={midY}
+              stroke={color}
+              strokeWidth={2}
+              strokeOpacity={0.75}
+            />
+          );
+        })}
+
+        {/* ── Bottom half: outgoing lines (midY → ROW_H) ── */}
+        {row.linesDown.map((line, li) => {
+          const x1 = laneX(line.fromCol);
+          const x2 = laneX(line.toCol);
+          const color = getColor(line.colorIdx);
+
+          if (x1 === x2) {
+            return (
+              <line
+                key={`out-${li}`}
+                x1={x1} y1={midY}
+                x2={x2} y2={ROW_H}
+                stroke={color}
+                strokeWidth={2}
+                strokeOpacity={0.75}
+              />
+            );
+          } else {
+            // Curved line for branch/merge
+            const cpY1 = midY + (ROW_H - midY) * 0.6;
+            const cpY2 = ROW_H - (ROW_H - midY) * 0.2;
+            return (
+              <path
+                key={`out-${li}`}
+                d={`M ${x1} ${midY} C ${x1} ${cpY1}, ${x2} ${cpY2}, ${x2} ${ROW_H}`}
+                fill="none"
+                stroke={color}
+                strokeWidth={2}
+                strokeOpacity={0.75}
+              />
+            );
+          }
+        })}
+
+        {/* ── Commit dot ── */}
+        <circle
+          cx={cx}
+          cy={midY}
+          r={isMerge ? DOT_R_MERGE : DOT_R}
+          fill={isMerge ? dotColor : '#1e1e1e'}
+          stroke={isSelected ? '#fff' : dotColor}
+          strokeWidth={2}
+        />
+      </svg>
+    );
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────
+
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e]">
       {/* Column headers */}
       <div className="flex items-center h-[24px] bg-[#252526] border-b border-[#3c3c3c] text-[10px] font-semibold text-[#888] uppercase tracking-wider select-none flex-shrink-0">
-        <div className="w-[50px] text-center">Graph</div>
+        <div style={{ width: graphColWidth }} className="text-center flex-shrink-0">Graph</div>
         <div className="flex-1 px-2">Description</div>
         <div className="w-[120px] px-2">Author</div>
         <div className="w-[140px] px-2">Date</div>
@@ -116,8 +397,8 @@ export default function CommitHistory({
           commits.map((commit, idx) => {
             const isSelected = selectedCommitSha === commit.sha;
             const isMerge = commit.parent_ids.length > 1;
-            const color = getGraphColor(idx % 3 === 0 ? 0 : idx % 3 === 1 ? 2 : 1);
             const branchLabels = getBranchLabels(commit.sha);
+            const row = graphRows[idx];
 
             return (
               <div
@@ -130,34 +411,11 @@ export default function CommitHistory({
                     : 'text-[#ccc] hover:bg-[#2a2d2e]'
                 }`}
               >
-                {/* Graph column */}
-                <div className="w-[50px] flex items-center justify-center flex-shrink-0">
-                  <div className="relative flex items-center justify-center w-[50px] h-[26px]">
-                    {/* Vertical line */}
-                    {idx > 0 && (
-                      <div className="absolute top-0 w-px h-[13px]" style={{ left: '50%', backgroundColor: color + '60' }} />
-                    )}
-                    {idx < commits.length - 1 && (
-                      <div className="absolute bottom-0 w-px h-[13px]" style={{ left: '50%', backgroundColor: color + '60' }} />
-                    )}
-                    {/* Merge line (right side) */}
-                    {isMerge && idx > 0 && (
-                      <div className="absolute top-[13px] h-px w-[10px]" style={{ left: '50%', backgroundColor: GRAPH_COLORS[2] + '80' }} />
-                    )}
-                    {/* Commit dot */}
-                    <div
-                      className={`relative z-10 rounded-full ${isMerge ? 'w-[8px] h-[8px]' : 'w-[7px] h-[7px]'}`}
-                      style={{
-                        backgroundColor: isMerge ? color : 'transparent',
-                        border: `2px solid ${isSelected ? '#fff' : color}`,
-                      }}
-                    />
-                  </div>
-                </div>
+                {/* Graph column (SVG) */}
+                {row && renderGraphCell(row, idx)}
 
                 {/* Description + branch labels */}
                 <div className="flex-1 px-2 truncate min-w-0 flex items-center gap-1.5">
-                  {/* Branch / tag labels */}
                   {branchLabels.map((lbl, li) => (
                     <span
                       key={li}
@@ -181,7 +439,6 @@ export default function CommitHistory({
                       )}
                     </span>
                   ))}
-                  {/* First commit gets HEAD label */}
                   {idx === 0 && branchLabels.length === 0 && (
                     <span className={`text-[10px] px-1.5 py-0 rounded-sm font-medium flex-shrink-0 leading-[16px] ${
                       isSelected ? 'bg-white/20 text-white' : 'bg-green-700/80 text-green-100'
