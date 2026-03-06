@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { GitBranch, Undo2, Copy } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { GitBranch, Undo2, Copy, Search, X, ChevronDown } from 'lucide-react';
 import type { CommitInfo } from '../types/git';
+import * as api from '../services/api';
 
 interface CommitHistoryProps {
   commits: CommitInfo[];
@@ -12,6 +13,8 @@ interface CommitHistoryProps {
   selectedCommitSha?: string | null;
   branches?: { name: string; is_current: boolean; sha?: string; commit_sha?: string }[];
   tags?: { name: string; sha?: string; target?: string }[];
+  onLoadMore?: () => void;
+  hasMore?: boolean;
 }
 
 interface ContextMenuState {
@@ -216,13 +219,61 @@ export default function CommitHistory({
   selectedCommitSha,
   branches,
   tags,
+  onLoadMore,
+  hasMore = false,
 }: CommitHistoryProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     show: false, x: 0, y: 0, commit: null,
   });
   const menuRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const graphRows = useMemo(() => buildGraphLayout(commits), [commits]);
+  // ── Search state ─────────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<CommitInfo[] | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  const handleSearch = useCallback(async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await api.searchCommits(repoPath, query.trim(), 200);
+      setSearchResults(results);
+    } catch (err) {
+      console.error('Search failed:', err);
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, [repoPath]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery) handleSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, handleSearch]);
+
+  // Display commits: search results take priority over regular list
+  const displayCommits = searchResults ?? commits;
+
+  // ── Infinite scroll via IntersectionObserver ─────────────────────────
+  useEffect(() => {
+    if (!loadMoreRef.current || !onLoadMore) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting && hasMore) onLoadMore(); },
+      { threshold: 0.1 }
+    );
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [onLoadMore, hasMore]);
+
+  const graphRows = useMemo(() => buildGraphLayout(displayCommits), [displayCommits]);
 
   const maxLanes = useMemo(
     () => graphRows.reduce((m, r) => Math.max(m, r.laneCount), 1),
@@ -299,8 +350,8 @@ export default function CommitHistory({
   const midY = ROW_H / 2;
 
   const renderGraphCell = (row: GraphRow, idx: number) => {
-    const isMerge = commits[idx].parent_ids.length > 1;
-    const isSelected = selectedCommitSha === commits[idx].sha;
+    const isMerge = displayCommits[idx].parent_ids.length > 1;
+    const isSelected = selectedCommitSha === displayCommits[idx].sha;
     const cx = laneX(row.column);
     const dotColor = getColor(row.colorIdx);
 
@@ -378,6 +429,34 @@ export default function CommitHistory({
 
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e]">
+      {/* Search bar */}
+      <div className="flex items-center gap-1.5 px-2 py-1.5 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
+        <Search size={12} className="text-[#666] flex-shrink-0" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => {
+            const q = e.target.value;
+            setSearchQuery(q);
+            if (!q.trim()) setSearchResults(null);
+          }}
+          placeholder="커밋 검색 (메시지, 작성자, SHA)..."
+          className="flex-1 bg-transparent text-[12px] text-[#ccc] outline-none placeholder-[#555]"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => { setSearchQuery(''); setSearchResults(null); }}
+            className="text-[#666] hover:text-[#ccc] transition-colors"
+          >
+            <X size={12} />
+          </button>
+        )}
+        {searching && <span className="text-[10px] text-[#666]">검색 중...</span>}
+        {searchResults && !searching && (
+          <span className="text-[10px] text-[#666]">{searchResults.length}개</span>
+        )}
+      </div>
+
       {/* Column headers */}
       <div className="flex items-center h-[24px] bg-[#252526] border-b border-[#3c3c3c] text-[10px] font-semibold text-[#888] uppercase tracking-wider select-none flex-shrink-0">
         <div style={{ width: graphColWidth }} className="text-center flex-shrink-0">Graph</div>
@@ -389,12 +468,12 @@ export default function CommitHistory({
 
       {/* Commit rows */}
       <div className="flex-1 overflow-y-auto">
-        {commits.length === 0 ? (
+        {displayCommits.length === 0 ? (
           <div className="flex items-center justify-center h-full text-[#555] text-[12px]">
-            No commits
+            {searchQuery ? '검색 결과가 없습니다' : 'No commits'}
           </div>
         ) : (
-          commits.map((commit, idx) => {
+          displayCommits.map((commit, idx) => {
             const isSelected = selectedCommitSha === commit.sha;
             const isMerge = commit.parent_ids.length > 1;
             const branchLabels = getBranchLabels(commit.sha);
@@ -402,7 +481,7 @@ export default function CommitHistory({
 
             return (
               <div
-                key={commit.sha}
+                key={commit.sha + idx}
                 onClick={() => onSelectCommit?.(commit.sha)}
                 onContextMenu={(e) => handleContextMenu(e, commit)}
                 className={`flex items-center h-[26px] text-[12px] cursor-pointer border-b border-[#2a2a2a] ${
@@ -476,6 +555,18 @@ export default function CommitHistory({
               </div>
             );
           })
+          {/* Load more sentinel / button */}
+          {!searchQuery && hasMore && (
+            <div ref={loadMoreRef} className="py-2 text-center">
+              <button
+                onClick={onLoadMore}
+                className="flex items-center gap-1 mx-auto text-[11px] text-[#888] hover:text-[#ccc] transition-colors"
+              >
+                <ChevronDown size={13} />
+                더 불러오기
+              </button>
+            </div>
+          )}
         )}
       </div>
 

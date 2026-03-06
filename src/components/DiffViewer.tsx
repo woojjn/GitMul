@@ -265,10 +265,18 @@ function TextDiffViewer({
   }
 
   if (error) {
+    const isTooBig = error.includes('파일이 너무 큽니다') || error.includes('too large');
     return (
       <div className="p-4 bg-[#1e1e1e]">
-        <div className="bg-[#3a1e1e] border border-[#5a2d2d] rounded-md p-4">
-          <p className="text-[#e57373] text-[13px]">{error}</p>
+        <div className={`border rounded-md p-4 ${isTooBig ? 'bg-[#1e2a3a] border-[#2d5a8a]' : 'bg-[#3a1e1e] border-[#5a2d2d]'}`}>
+          {isTooBig ? (
+            <div className="text-center">
+              <p className="text-[#5b9bd5] text-[13px] font-semibold mb-1">파일이 너무 큽니다 (10MB 초과)</p>
+              <p className="text-[#888] text-[12px]">외부 에디터나 터미널에서 확인하세요.</p>
+            </div>
+          ) : (
+            <p className="text-[#e57373] text-[13px]">{error}</p>
+          )}
         </div>
       </div>
     );

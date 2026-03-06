@@ -8,10 +8,27 @@ use super::utils::{normalize_unicode, open_repo, ensure_utf8_config};
 #[tauri::command]
 pub async fn open_repository(path: String) -> Result<RepositoryInfo, String> {
     let repo = open_repo(&path)?;
-    ensure_utf8_config(&repo)?;
+    // Best-effort: utf8 config failure should not block opening the repo
+    let _ = ensure_utf8_config(&repo);
 
-    let head = repo.head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
-    let branch = head.shorthand().unwrap_or("detached").to_string();
+    let branch = match repo.head() {
+        Ok(head) => head.shorthand().unwrap_or("detached").to_string(),
+        Err(_) if repo.is_head_unborn() => {
+            // 첫 커밋 전(unborn): HEAD 파일에서 브랜치명 읽기
+            // 내용 예: "ref: refs/heads/main\n"
+            let head_file = repo.path().join("HEAD");
+            std::fs::read_to_string(&head_file)
+                .ok()
+                .and_then(|content| {
+                    content
+                        .trim()
+                        .strip_prefix("ref: refs/heads/")
+                        .map(|s| s.to_string())
+                })
+                .unwrap_or_else(|| "main".to_string())
+        }
+        Err(_) => "detached".to_string(),
+    };
 
     let remote_url = repo
         .find_remote("origin")
@@ -39,6 +56,11 @@ pub async fn get_commit_history(
     limit: usize,
 ) -> Result<Vec<CommitInfo>, String> {
     let repo = open_repo(&repo_path)?;
+
+    // Unborn HEAD (no commits yet): return empty list instead of error
+    if repo.is_head_unborn() {
+        return Ok(Vec::new());
+    }
 
     let mut revwalk = repo.revwalk().map_err(|e| format!("Revwalk 생성 실패: {}", e))?;
     revwalk.push_head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
@@ -140,15 +162,16 @@ pub async fn stage_file(repo_path: String, path: String) -> Result<(), String> {
         .index()
         .map_err(|e| format!("인덱스 접근 실패: {}", e))?;
 
-    let full_path = std::path::Path::new(&repo_path).join(&path);
+    let normalized = normalize_unicode(&path);
+    let full_path = std::path::Path::new(&repo_path).join(&normalized);
 
     if full_path.exists() {
         index
-            .add_path(Path::new(&path))
+            .add_path(Path::new(&normalized))
             .map_err(|e| format!("파일 스테이징 실패: {}", e))?;
     } else {
         index
-            .remove_path(Path::new(&path))
+            .remove_path(Path::new(&normalized))
             .map_err(|e| format!("삭제된 파일 스테이징 실패: {}", e))?;
     }
 
@@ -165,7 +188,8 @@ pub async fn unstage_file(repo_path: String, path: String) -> Result<(), String>
     let mut index = repo
         .index()
         .map_err(|e| format!("인덱스 접근 실패: {}", e))?;
-    let file_path = Path::new(&path);
+    let normalized = normalize_unicode(&path);
+    let file_path = Path::new(&normalized);
 
     match repo.head() {
         Ok(head) => {
@@ -192,7 +216,7 @@ pub async fn unstage_file(repo_path: String, path: String) -> Result<(), String>
                     id: entry.id(),
                     flags: 0,
                     flags_extended: 0,
-                    path: path.as_bytes().to_vec(),
+                    path: normalized.as_bytes().to_vec(),
                 };
                 index
                     .add_frombuffer(&index_entry, blob.content())
@@ -289,4 +313,64 @@ pub async fn create_commit(repo_path: String, message: String) -> Result<String,
         .map_err(|e| format!("커밋 생성 실패: {}", e))?;
 
     Ok(format!("커밋 성공: {}", oid))
+}
+
+/// Search commits by message, author, or SHA prefix.
+#[tauri::command]
+pub async fn search_commits(
+    repo_path: String,
+    query: String,
+    limit: usize,
+) -> Result<Vec<CommitInfo>, String> {
+    let repo = open_repo(&repo_path)?;
+
+    if repo.is_head_unborn() {
+        return Ok(Vec::new());
+    }
+
+    let query_lower = query.to_lowercase();
+    let mut revwalk = repo.revwalk().map_err(|e| format!("Revwalk 생성 실패: {}", e))?;
+    revwalk.push_head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
+    revwalk
+        .set_sorting(git2::Sort::TIME)
+        .map_err(|e| format!("정렬 설정 실패: {}", e))?;
+
+    let mut results = Vec::new();
+    let search_limit = limit.max(5000); // search up to 5000 commits max
+
+    for (idx, oid_result) in revwalk.enumerate() {
+        if idx >= search_limit || results.len() >= limit {
+            break;
+        }
+
+        let oid = oid_result.map_err(|e| format!("OID 읽기 실패: {}", e))?;
+        let commit = repo.find_commit(oid).map_err(|e| format!("커밋 찾기 실패: {}", e))?;
+
+        let sha = oid.to_string();
+        let message = commit.message().unwrap_or("").to_lowercase();
+        let author = commit.author().name().unwrap_or("").to_lowercase();
+
+        // Match against SHA prefix, message, or author
+        let matches = sha.starts_with(&query_lower)
+            || message.contains(&query_lower)
+            || author.contains(&query_lower);
+
+        if matches {
+            let timestamp = commit.time().seconds();
+            let datetime = Utc.timestamp_opt(timestamp, 0).unwrap();
+            let parent_ids: Vec<String> = commit.parent_ids().map(|oid| oid.to_string()).collect();
+
+            results.push(CommitInfo {
+                sha,
+                author: commit.author().name().unwrap_or("Unknown").to_string(),
+                email: commit.author().email().unwrap_or("").to_string(),
+                message: commit.message().unwrap_or("").to_string(),
+                timestamp,
+                date: datetime.format("%Y-%m-%d %H:%M:%S").to_string(),
+                parent_ids,
+            });
+        }
+    }
+
+    Ok(results)
 }

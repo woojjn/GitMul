@@ -381,6 +381,12 @@ export const cloneFromBundle = (bundlePath: string, targetPath: string) =>
 export const cloneRepository = (url: string, targetPath: string) =>
   invoke<string>('clone_repository', { url, targetPath });
 
+export const searchCommits = (repoPath: string, query: string, limit = 100) =>
+  invoke<CommitInfo[]>('search_commits', { repoPath, query, limit });
+
+export const getBranchDivergence = (repoPath: string, branch: string, base: string) =>
+  invoke<[number, number]>('get_branch_divergence', { repoPath, branch, base });
+
 // ============================================================================
 // Dialog Helpers (Tauri Dialog API)
 // ============================================================================

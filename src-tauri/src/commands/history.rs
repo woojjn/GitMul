@@ -1,7 +1,7 @@
 use git2::{DiffOptions, Oid};
 
 use super::models::FileHistoryEntry;
-use super::utils::open_repo;
+use super::utils::{normalize_unicode, open_repo};
 
 /// Get file history (commits that modified a specific file).
 #[tauri::command]
@@ -10,6 +10,7 @@ pub fn get_file_history(
     file_path: String,
     limit: Option<usize>,
 ) -> Result<Vec<FileHistoryEntry>, String> {
+    let normalized_path = normalize_unicode(&file_path);
     let repo = open_repo(&repo_path)?;
 
     let mut revwalk = repo
@@ -48,7 +49,7 @@ pub fn get_file_history(
         };
 
         let mut opts = DiffOptions::new();
-        opts.pathspec(&file_path);
+        opts.pathspec(&normalized_path);
 
         let diff = repo
             .diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))
@@ -68,7 +69,8 @@ pub fn get_file_history(
                 delta
                     .old_file()
                     .path()
-                    .map(|p| p.to_string_lossy().to_string())
+                    .and_then(|p| p.to_str())
+                    .map(normalize_unicode)
             } else {
                 None
             };
@@ -98,6 +100,7 @@ pub fn get_file_at_commit(
     commit_sha: String,
     file_path: String,
 ) -> Result<String, String> {
+    let normalized_path = normalize_unicode(&file_path);
     let repo = open_repo(&repo_path)?;
 
     let oid = Oid::from_str(&commit_sha).map_err(|e| format!("잘못된 커밋 SHA: {}", e))?;
@@ -109,7 +112,7 @@ pub fn get_file_at_commit(
         .map_err(|e| format!("트리 접근 실패: {}", e))?;
 
     let entry = tree
-        .get_path(std::path::Path::new(&file_path))
+        .get_path(std::path::Path::new(&normalized_path))
         .map_err(|e| format!("파일 찾기 실패: {}", e))?;
     let blob = repo
         .find_blob(entry.id())

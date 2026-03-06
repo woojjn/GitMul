@@ -10,6 +10,9 @@ use super::utils::{normalize_unicode, open_repo};
 // Text Diff Commands
 // ============================================================================
 
+/// Maximum file size (10 MB) for which we will produce a text diff.
+const MAX_DIFF_FILE_SIZE: u64 = 10 * 1024 * 1024;
+
 /// Get diff for a specific file (staged or unstaged).
 #[tauri::command]
 pub async fn get_file_diff(
@@ -18,6 +21,22 @@ pub async fn get_file_diff(
     staged: bool,
 ) -> Result<String, String> {
     let normalized_path = normalize_unicode(&file_path);
+
+    // Guard against excessively large files
+    if !staged {
+        let full_path = std::path::Path::new(&repo_path).join(&normalized_path);
+        if full_path.exists() {
+            if let Ok(meta) = std::fs::metadata(&full_path) {
+                if meta.len() > MAX_DIFF_FILE_SIZE {
+                    return Err(format!(
+                        "파일이 너무 큽니다 ({:.1} MB). 10 MB 이하 파일만 diff를 지원합니다.",
+                        meta.len() as f64 / (1024.0 * 1024.0)
+                    ));
+                }
+            }
+        }
+    }
+
     let repo = open_repo(&repo_path)?;
 
     let mut opts = DiffOptions::new();

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, GitBranch, Tag, Cloud, Archive, FolderOpen, Clock, FileText, History, Star, Search, Settings } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { ChevronDown, ChevronRight, GitBranch, Tag, Cloud, Archive, FolderOpen, FileText, History, Search, Settings } from 'lucide-react';
 import type { BranchInfo, TagInfo, RemoteInfo, StashInfo } from '../types/git';
 
 interface ForkSidebarProps {
@@ -13,6 +13,7 @@ interface ForkSidebarProps {
   currentBranch?: string;
   onSelectRepo: (path: string) => void;
   onSwitchBranch?: (branchName: string) => void;
+  onDeleteBranch?: (branchName: string) => void;
   onShowChanges: () => void;
   onShowAllCommits: () => void;
   onShowBranches: () => void;
@@ -50,6 +51,121 @@ function TreeSection({ label, icon, count, defaultOpen = true, children, onHeade
       </button>
       {open && <div className="ml-1">{children}</div>}
     </div>
+  );
+}
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  branchName: string;
+  isCurrent: boolean;
+}
+
+interface BranchTreeItemProps {
+  branch: BranchInfo;
+  active?: boolean;
+  onClick?: () => void;
+  onSwitchBranch?: (name: string) => void;
+  onDeleteBranch?: (name: string) => void;
+  onShowBranchManager?: () => void;
+}
+
+function BranchTreeItem({ branch, active, onClick, onSwitchBranch, onDeleteBranch, onShowBranchManager }: BranchTreeItemProps) {
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ctx) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setCtx(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [ctx]);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setCtx({ x: e.clientX, y: e.clientY });
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={onClick}
+        onContextMenu={handleContextMenu}
+        className={`w-full flex items-center gap-1.5 px-2 py-[2px] text-[12px] transition-colors truncate ${
+          active
+            ? 'bg-[#094771] text-white'
+            : 'text-[#ccc] hover:bg-[#2a2d2e]'
+        }`}
+        style={{ paddingLeft: '8px' }}
+        title={branch.name}
+      >
+        <GitBranch size={11} className={branch.is_current ? 'text-green-400' : 'text-[#666]'} />
+        <span className="truncate flex-1 text-left">{branch.name}</span>
+        {branch.is_current && (
+          <span className="text-[9px] text-green-400 flex-shrink-0">&#10003;</span>
+        )}
+      </button>
+
+      {ctx && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 bg-[#252526] border border-[#454545] rounded shadow-lg py-0.5 min-w-[160px]"
+          style={{ left: ctx.x, top: ctx.y }}
+        >
+          <CtxMenuItem
+            label={branch.is_current ? '현재 브랜치' : '체크아웃'}
+            disabled={branch.is_current}
+            onClick={() => { setCtx(null); if (!branch.is_current) onSwitchBranch?.(branch.name); }}
+          />
+          <div className="h-px bg-[#454545] my-0.5" />
+          <CtxMenuItem
+            label="브랜치 관리..."
+            onClick={() => { setCtx(null); onShowBranchManager?.(); }}
+          />
+          <div className="h-px bg-[#454545] my-0.5" />
+          <CtxMenuItem
+            label="삭제"
+            disabled={branch.is_current}
+            danger
+            onClick={() => {
+              setCtx(null);
+              if (!branch.is_current && confirm(`브랜치 '${branch.name}'을 삭제하시겠습니까?`)) {
+                onDeleteBranch?.(branch.name);
+              }
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface CtxMenuItemProps {
+  label: string;
+  disabled?: boolean;
+  danger?: boolean;
+  onClick: () => void;
+}
+
+function CtxMenuItem({ label, disabled, danger, onClick }: CtxMenuItemProps) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      className={`w-full text-left px-3 py-1 text-[12px] transition-colors ${
+        disabled
+          ? 'text-[#555] cursor-default'
+          : danger
+          ? 'text-[#e57373] hover:bg-[#3a1e1e]'
+          : 'text-[#ccc] hover:bg-[#094771] hover:text-white'
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -103,6 +219,7 @@ export default function ForkSidebar({
   currentBranch,
   onSelectRepo,
   onSwitchBranch,
+  onDeleteBranch,
   onShowChanges,
   onShowAllCommits,
   onShowBranches,
@@ -112,7 +229,7 @@ export default function ForkSidebar({
   activeView,
 }: ForkSidebarProps) {
   const [filterText, setFilterText] = useState('');
-  
+
   const localBranches = branches.filter(b => !b.is_remote);
   const remoteBranches = branches.filter(b => b.is_remote);
 
@@ -183,12 +300,13 @@ export default function ForkSidebar({
           onHeaderDoubleClick={onShowBranches}
         >
           {filteredLocal.map(b => (
-            <TreeItem
+            <BranchTreeItem
               key={b.name}
-              label={b.name}
-              isCurrent={b.is_current}
-              icon={<GitBranch size={11} className={b.is_current ? 'text-green-400' : 'text-[#666]'} />}
+              branch={b}
               onClick={() => onSwitchBranch?.(b.name)}
+              onSwitchBranch={onSwitchBranch}
+              onDeleteBranch={onDeleteBranch}
+              onShowBranchManager={onShowBranches}
             />
           ))}
         </TreeSection>

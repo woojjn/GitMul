@@ -78,12 +78,21 @@ function App() {
   // Toast notifications
   const { toasts, removeToast, success: showSuccess, error: showError } = useToast();
 
+  // Commit pagination
+  const [commitLimit, setCommitLimit] = useState(100);
+
   // Repository operations
-  const { recentRepos, loadRecentRepos, openRepository, openRepositoryPath, cloneRepository, refreshRepository } = useRepository({
+  const { recentRepos, loadRecentRepos, openRepository, openRepositoryPath, cloneRepository, refreshRepository, loadMoreCommits } = useRepository({
     tabManager,
     onSuccess: showSuccess,
     onError: showError,
   });
+
+  const handleLoadMoreCommits = useCallback(async () => {
+    const newLimit = commitLimit + 100;
+    setCommitLimit(newLimit);
+    await loadMoreCommits(newLimit);
+  }, [commitLimit, loadMoreCommits]);
 
   // Git operations
   const { stageFile, unstageFile, stageFiles, unstageFiles, stageAll, commit } = useGitOperations({
@@ -101,11 +110,12 @@ function App() {
     loadRecentRepos();
   }, []);
 
-  // Load sidebar data when repo changes
+  // Load sidebar data when repo changes; reset commit pagination
   useEffect(() => {
     const repoPath = activeTab?.dataState.currentRepo?.path;
     if (!repoPath) return;
 
+    setCommitLimit(100);
     api.listTags(repoPath).then(setTags).catch(() => setTags([]));
     api.listRemotes(repoPath).then(setRemotes).catch(() => setRemotes([]));
     api.stashList(repoPath).then(setStashes).catch(() => setStashes([]));
@@ -354,6 +364,8 @@ function App() {
             }}
             branches={dataState.branches}
             tags={tags}
+            onLoadMore={handleLoadMoreCommits}
+            hasMore={dataState.commits.length >= commitLimit}
           />
         </div>
 
@@ -506,6 +518,16 @@ function App() {
                 refreshRepository();
               } catch (err) {
                 showError(`Failed to switch branch: ${err}`);
+              }
+            }}
+            onDeleteBranch={async (branchName) => {
+              if (!dataState.currentRepo) return;
+              try {
+                await api.deleteBranch(dataState.currentRepo.path, branchName);
+                showSuccess(`Branch '${branchName}' deleted`);
+                refreshRepository();
+              } catch (err) {
+                showError(`Failed to delete branch: ${err}`);
               }
             }}
             onShowChanges={() => {

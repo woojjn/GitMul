@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use super::models::{ConflictFile, ConflictInfo};
-use super::utils::{open_repo, read_blob_content};
+use super::utils::{normalize_unicode, open_repo, read_blob_content};
 
 /// Get list of conflicted files with content from each side.
 #[tauri::command]
@@ -79,8 +79,9 @@ pub fn resolve_conflict(
     resolution: String,
     content: Option<String>,
 ) -> Result<(), String> {
+    let normalized_path = normalize_unicode(&file_path);
     let repo = open_repo(&repo_path)?;
-    let file_full_path = Path::new(&repo_path).join(&file_path);
+    let file_full_path = Path::new(&repo_path).join(&normalized_path);
 
     match resolution.as_str() {
         "ours" => {
@@ -93,7 +94,7 @@ pub fn resolve_conflict(
                 .find(|c| {
                     if let Ok(conflict) = c {
                         if let Some(our) = &conflict.our {
-                            return String::from_utf8_lossy(&our.path) == file_path;
+                            return String::from_utf8_lossy(&our.path) == normalized_path;
                         }
                     }
                     false
@@ -118,7 +119,7 @@ pub fn resolve_conflict(
                 .find(|c| {
                     if let Ok(conflict) = c {
                         if let Some(their) = &conflict.their {
-                            return String::from_utf8_lossy(&their.path) == file_path;
+                            return String::from_utf8_lossy(&their.path) == normalized_path;
                         }
                     }
                     false
@@ -149,7 +150,7 @@ pub fn resolve_conflict(
         .index()
         .map_err(|e| format!("인덱스 접근 실패: {}", e))?;
     index
-        .add_path(Path::new(&file_path))
+        .add_path(Path::new(&normalized_path))
         .map_err(|e| format!("파일 스테이징 실패: {}", e))?;
     index
         .write()

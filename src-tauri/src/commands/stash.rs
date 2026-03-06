@@ -1,7 +1,7 @@
 use git2::StashFlags;
-use std::path::Path;
 
 use super::models::StashInfo;
+use super::utils::open_repo;
 
 /// Create a stash with optional message.
 #[tauri::command]
@@ -10,8 +10,7 @@ pub fn stash_save(
     message: Option<String>,
     include_untracked: bool,
 ) -> Result<String, String> {
-    let mut repo = git2::Repository::open(Path::new(&repo_path))
-        .map_err(|e| format!("레포지토리 열기 실패: {}", e))?;
+    let mut repo = open_repo(&repo_path)?;
 
     let sig = repo
         .signature()
@@ -33,8 +32,7 @@ pub fn stash_save(
 /// List all stashes.
 #[tauri::command]
 pub fn stash_list(repo_path: String) -> Result<Vec<StashInfo>, String> {
-    let mut repo = git2::Repository::open(Path::new(&repo_path))
-        .map_err(|e| format!("레포지토리 열기 실패: {}", e))?;
+    let mut repo = open_repo(&repo_path)?;
 
     let mut stashes = Vec::new();
     repo.stash_foreach(|index, message, oid| {
@@ -53,8 +51,7 @@ pub fn stash_list(repo_path: String) -> Result<Vec<StashInfo>, String> {
 /// Apply a stash by index.
 #[tauri::command]
 pub fn stash_apply(repo_path: String, index: usize) -> Result<String, String> {
-    let mut repo = git2::Repository::open(Path::new(&repo_path))
-        .map_err(|e| format!("레포지토리 열기 실패: {}", e))?;
+    let mut repo = open_repo(&repo_path)?;
 
     repo.stash_apply(index, None)
         .map_err(|e| format!("스태시 적용 실패: {}", e))?;
@@ -65,8 +62,7 @@ pub fn stash_apply(repo_path: String, index: usize) -> Result<String, String> {
 /// Pop a stash by index (apply and remove).
 #[tauri::command]
 pub fn stash_pop(repo_path: String, index: usize) -> Result<String, String> {
-    let mut repo = git2::Repository::open(Path::new(&repo_path))
-        .map_err(|e| format!("레포지토리 열기 실패: {}", e))?;
+    let mut repo = open_repo(&repo_path)?;
 
     repo.stash_pop(index, None)
         .map_err(|e| format!("스태시 팝 실패: {}", e))?;
@@ -77,8 +73,7 @@ pub fn stash_pop(repo_path: String, index: usize) -> Result<String, String> {
 /// Drop a stash by index.
 #[tauri::command]
 pub fn stash_drop(repo_path: String, index: usize) -> Result<String, String> {
-    let mut repo = git2::Repository::open(Path::new(&repo_path))
-        .map_err(|e| format!("레포지토리 열기 실패: {}", e))?;
+    let mut repo = open_repo(&repo_path)?;
 
     repo.stash_drop(index)
         .map_err(|e| format!("스태시 삭제 실패: {}", e))?;

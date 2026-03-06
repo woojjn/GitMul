@@ -19,3 +19,4 @@ pub mod history;
 pub mod rebase;
 pub mod reflog;
 pub mod bundle;
+pub mod clone;

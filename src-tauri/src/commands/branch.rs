@@ -87,10 +87,39 @@ pub async fn create_branch(repo_path: String, branch_name: String) -> Result<Str
 }
 
 /// Switch to a different branch.
+/// Returns an error if there are uncommitted changes to prevent data loss.
+/// If `force` is true, checkout proceeds even with uncommitted changes.
 #[tauri::command]
-pub async fn switch_branch(repo_path: String, branch_name: String) -> Result<String, String> {
+pub async fn switch_branch(
+    repo_path: String,
+    branch_name: String,
+    force: Option<bool>,
+) -> Result<String, String> {
     let normalized_name = normalize_unicode(&branch_name);
     let repo = open_repo(&repo_path)?;
+    let force = force.unwrap_or(false);
+
+    // 미저장 변경사항 감지 (force 모드가 아닐 때만)
+    if !force {
+        let statuses = repo
+            .statuses(None)
+            .map_err(|e| format!("상태 확인 실패: {}", e))?;
+        let has_changes = statuses.iter().any(|s| {
+            s.status().intersects(
+                git2::Status::INDEX_NEW
+                    | git2::Status::INDEX_MODIFIED
+                    | git2::Status::INDEX_DELETED
+                    | git2::Status::WT_MODIFIED
+                    | git2::Status::WT_DELETED,
+            )
+        });
+        if has_changes {
+            return Err(
+                "미저장 변경사항이 있습니다. 먼저 커밋하거나 스태시한 후 브랜치를 전환하세요."
+                    .to_string(),
+            );
+        }
+    }
 
     let branch = repo
         .find_branch(&normalized_name, BranchType::Local)
@@ -104,7 +133,9 @@ pub async fn switch_branch(repo_path: String, branch_name: String) -> Result<Str
         .map_err(|e| format!("HEAD 변경 실패: {}", e))?;
 
     let mut checkout_builder = git2::build::CheckoutBuilder::new();
-    checkout_builder.force();
+    if force {
+        checkout_builder.force();
+    }
     repo.checkout_head(Some(&mut checkout_builder))
         .map_err(|e| format!("체크아웃 실패: {}", e))?;
 
@@ -112,16 +143,49 @@ pub async fn switch_branch(repo_path: String, branch_name: String) -> Result<Str
 }
 
 /// Delete a branch.
+/// By default, refuses to delete unmerged branches to prevent data loss.
+/// If `force` is true, deletes even if not merged into the current branch.
 #[tauri::command]
-pub async fn delete_branch(repo_path: String, branch_name: String) -> Result<String, String> {
+pub async fn delete_branch(
+    repo_path: String,
+    branch_name: String,
+    force: Option<bool>,
+) -> Result<String, String> {
     let normalized_name = normalize_unicode(&branch_name);
     let repo = open_repo(&repo_path)?;
+    let force = force.unwrap_or(false);
 
     let head = repo.head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
     let current_branch = head.shorthand().unwrap_or("");
 
     if current_branch == normalized_name {
         return Err("현재 브랜치는 삭제할 수 없습니다".to_string());
+    }
+
+    // 병합 여부 확인 (force 모드가 아닐 때만)
+    if !force {
+        let target_branch = repo
+            .find_branch(&normalized_name, BranchType::Local)
+            .map_err(|e| format!("브랜치 '{}' 찾기 실패: {}", normalized_name, e))?;
+        let target_commit = target_branch
+            .get()
+            .peel_to_commit()
+            .map_err(|e| format!("브랜치 커밋 접근 실패: {}", e))?;
+        let head_commit = head
+            .peel_to_commit()
+            .map_err(|e| format!("HEAD 커밋 접근 실패: {}", e))?;
+
+        // merge-base와 target이 같으면 이미 병합된 것
+        let merge_base = repo
+            .merge_base(head_commit.id(), target_commit.id())
+            .map_err(|e| format!("Merge-base 확인 실패: {}", e))?;
+
+        if merge_base != target_commit.id() {
+            return Err(format!(
+                "브랜치 '{}'는 현재 브랜치에 병합되지 않았습니다. 강제 삭제하려면 force 옵션을 사용하세요.",
+                normalized_name
+            ));
+        }
     }
 
     let mut branch = repo
@@ -133,6 +197,41 @@ pub async fn delete_branch(repo_path: String, branch_name: String) -> Result<Str
         .map_err(|e| format!("브랜치 삭제 실패: {}", e))?;
 
     Ok(format!("브랜치 '{}' 삭제 완료", normalized_name))
+}
+
+/// Get the number of commits a branch is ahead/behind relative to a base branch.
+/// Returns (ahead, behind) counts.
+#[tauri::command]
+pub async fn get_branch_divergence(
+    repo_path: String,
+    branch: String,
+    base: String,
+) -> Result<(usize, usize), String> {
+    let normalized_branch = normalize_unicode(&branch);
+    let normalized_base = normalize_unicode(&base);
+    let repo = open_repo(&repo_path)?;
+
+    let branch_ref = repo
+        .find_branch(&normalized_branch, BranchType::Local)
+        .map_err(|e| format!("브랜치 '{}' 찾기 실패: {}", normalized_branch, e))?;
+    let base_ref = repo
+        .find_branch(&normalized_base, BranchType::Local)
+        .map_err(|e| format!("기준 브랜치 '{}' 찾기 실패: {}", normalized_base, e))?;
+
+    let branch_commit = branch_ref
+        .get()
+        .peel_to_commit()
+        .map_err(|e| format!("브랜치 커밋 접근 실패: {}", e))?;
+    let base_commit = base_ref
+        .get()
+        .peel_to_commit()
+        .map_err(|e| format!("기준 브랜치 커밋 접근 실패: {}", e))?;
+
+    let (ahead, behind) = repo
+        .graph_ahead_behind(branch_commit.id(), base_commit.id())
+        .map_err(|e| format!("Ahead/Behind 계산 실패: {}", e))?;
+
+    Ok((ahead, behind))
 }
 
 /// Rename a branch.

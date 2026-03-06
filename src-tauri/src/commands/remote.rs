@@ -18,35 +18,41 @@ lazy_static::lazy_static! {
     }));
 }
 
-/// Build credential callbacks that try SSH agent, SSH key files, then user config.
+/// Build credential callbacks that try SSH key files (multiple), then credential helper.
+/// On Windows, ssh-agent integration via libgit2 is unreliable, so we prefer key files.
 fn build_credentials_callbacks() -> RemoteCallbacks<'static> {
     let mut callbacks = RemoteCallbacks::new();
-    let tried_ssh_key = std::cell::Cell::new(false);
+    let tried_count = std::cell::Cell::new(0u32);
 
     callbacks.credentials(move |_url, username_from_url, allowed_types| {
         let username = username_from_url.unwrap_or("git");
+        let attempt = tried_count.get();
+        tried_count.set(attempt + 1);
 
-        // Try SSH agent first
+        // SSH key authentication: try multiple key files in priority order
         if allowed_types.is_ssh_key() {
-            if !tried_ssh_key.get() {
-                tried_ssh_key.set(true);
-                // Try default SSH key locations
-                let home = dirs::home_dir().unwrap_or_default();
-                let id_rsa = home.join(".ssh/id_rsa");
-                let id_ed25519 = home.join(".ssh/id_ed25519");
+            let home = dirs::home_dir().unwrap_or_default();
+            // Priority order: ed25519 > ecdsa > rsa (newest → oldest algorithm)
+            let key_files = ["id_ed25519", "id_ecdsa", "id_rsa", "id_dsa"];
 
-                if id_ed25519.exists() {
-                    return Cred::ssh_key(username, None, &id_ed25519, None);
-                }
-                if id_rsa.exists() {
-                    return Cred::ssh_key(username, None, &id_rsa, None);
-                }
-                // Fall back to SSH agent
+            // Find the Nth existing key file based on attempt count
+            let existing_keys: Vec<_> = key_files
+                .iter()
+                .map(|k| home.join(".ssh").join(k))
+                .filter(|p| p.exists())
+                .collect();
+
+            if let Some(key_path) = existing_keys.get(attempt as usize) {
+                return Cred::ssh_key(username, None, key_path, None);
+            }
+
+            // All key files exhausted, try ssh-agent as last resort
+            if attempt as usize >= existing_keys.len() {
                 return Cred::ssh_key_from_agent(username);
             }
         }
 
-        // Try credential helper (for HTTPS with saved tokens)
+        // HTTPS: try git credential helper (Windows Credential Manager, macOS Keychain, etc.)
         if allowed_types.is_user_pass_plaintext() {
             return Cred::credential_helper(
                 &git2::Config::open_default().unwrap_or_else(|_| git2::Config::new().unwrap()),
@@ -55,12 +61,12 @@ fn build_credentials_callbacks() -> RemoteCallbacks<'static> {
             );
         }
 
-        // Default
+        // Default (Kerberos, etc.)
         if allowed_types.is_default() {
             return Cred::default();
         }
 
-        Err(git2::Error::from_str("인증 방법을 찾을 수 없습니다"))
+        Err(git2::Error::from_str("인증 방법을 찾을 수 없습니다. SSH 키를 ~/.ssh/에 설치하거나 Git Credential Manager를 설정하세요."))
     });
 
     callbacks
@@ -189,8 +195,9 @@ pub async fn pull_changes(
         return Ok("이미 최신 상태입니다".to_string());
     }
 
+    let refname = format!("refs/heads/{}", normalized_branch);
+
     if merge_analysis.is_fast_forward() {
-        let refname = format!("refs/heads/{}", normalized_branch);
         let mut reference = repo
             .find_reference(&refname)
             .map_err(|e| format!("참조 찾기 실패: {}", e))?;
@@ -205,9 +212,62 @@ pub async fn pull_changes(
 
         update_progress("idle", &format!("Fast-forward 완료: {}", remote_commit.id()));
         Ok("풀 성공 (fast-forward)".to_string())
+    } else if merge_analysis.is_normal() {
+        // Non-fast-forward: perform a merge commit
+        let head_commit = repo
+            .head()
+            .map_err(|e| format!("HEAD 접근 실패: {}", e))?
+            .peel_to_commit()
+            .map_err(|e| format!("HEAD 커밋 접근 실패: {}", e))?;
+
+        let mut index = repo
+            .merge_commits(&head_commit, &remote_commit, None)
+            .map_err(|e| format!("병합 실패: {}", e))?;
+
+        if index.has_conflicts() {
+            // Write the index with conflicts so the user can resolve them
+            index
+                .write_tree_to(&repo)
+                .map_err(|e| format!("충돌 인덱스 쓰기 실패: {}", e))?;
+            update_progress("idle", "충돌 발생");
+            return Err(
+                "풀 실패: 충돌이 발생했습니다. 충돌을 해결한 후 커밋하세요.".to_string(),
+            );
+        }
+
+        let tree_id = index
+            .write_tree_to(&repo)
+            .map_err(|e| format!("병합 트리 쓰기 실패: {}", e))?;
+        let tree = repo
+            .find_tree(tree_id)
+            .map_err(|e| format!("트리 찾기 실패: {}", e))?;
+
+        let sig = repo
+            .signature()
+            .map_err(|e| format!("서명 가져오기 실패: {}", e))?;
+
+        let merge_msg = format!(
+            "Merge remote-tracking branch '{}/{}'",
+            normalized_remote, normalized_branch
+        );
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            &merge_msg,
+            &tree,
+            &[&head_commit, &remote_commit],
+        )
+        .map_err(|e| format!("병합 커밋 생성 실패: {}", e))?;
+
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .map_err(|e| format!("체크아웃 실패: {}", e))?;
+
+        update_progress("idle", "병합 완료");
+        Ok("풀 성공 (merge commit)".to_string())
     } else {
-        update_progress("idle", "수동 병합이 필요합니다");
-        Err("풀 실패: 병합 또는 리베이스가 필요합니다".to_string())
+        update_progress("idle", "병합 불가");
+        Err("풀 실패: 병합을 진행할 수 없는 상태입니다.".to_string())
     }
 }
 

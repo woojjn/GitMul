@@ -32,6 +32,9 @@ use commands::tags::{create_annotated_tag, create_tag, delete_tag, list_tags, pu
 use commands::bundle::{
     list_bundle_refs, create_bundle, verify_bundle, fetch_from_bundle, clone_from_bundle,
 };
+use commands::clone::clone_repository;
+use commands::git::search_commits;
+use commands::branch::get_branch_divergence;
 
 fn main() {
     tauri::Builder::default()
@@ -120,6 +123,12 @@ fn main() {
             verify_bundle,
             fetch_from_bundle,
             clone_from_bundle,
+            // Clone
+            clone_repository,
+            // Search
+            search_commits,
+            // Branch divergence
+            get_branch_divergence,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
