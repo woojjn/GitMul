@@ -35,6 +35,7 @@ use commands::bundle::{
 use commands::clone::clone_repository;
 use commands::git::search_commits;
 use commands::branch::get_branch_divergence;
+use commands::shell::{open_in_explorer, open_terminal};
 
 fn main() {
     tauri::Builder::default()
@@ -131,6 +132,9 @@ fn main() {
             search_commits,
             // Branch divergence
             get_branch_divergence,
+            // Shell / System
+            open_in_explorer,
+            open_terminal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

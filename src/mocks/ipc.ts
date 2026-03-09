@@ -486,6 +486,12 @@ export async function mockInvoke<T>(cmd: string, args?: Record<string, any>): Pr
       fileChanges = fileChanges.map(f => ({ ...f, staged: true }));
       return undefined as unknown as T;
 
+    case 'discard_file': {
+      const p = args?.path as string;
+      fileChanges = fileChanges.filter(f => f.path !== p);
+      return undefined as unknown as T;
+    }
+
     case 'create_commit': {
       const newSha = Math.random().toString(16).slice(2).padEnd(40, '0');
       const msg = (args?.message as string) ?? 'mock commit';

@@ -20,3 +20,4 @@ pub mod rebase;
 pub mod reflog;
 pub mod bundle;
 pub mod clone;
+pub mod shell;
