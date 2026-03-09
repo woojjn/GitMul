@@ -101,8 +101,8 @@ import type {
 export const openRepository = (path: string) =>
   invoke<RepositoryInfo>('open_repository', { path });
 
-export const getCommitHistory = (repoPath: string, limit = 100) =>
-  invoke<CommitInfo[]>('get_commit_history', { repoPath, limit });
+export const getCommitHistory = (repoPath: string, limit = 100, allBranches = false) =>
+  invoke<CommitInfo[]>('get_commit_history', { repoPath, limit, allBranches });
 
 export const getRepositoryStatus = (repoPath: string) =>
   invoke<FileStatus[]>('get_repository_status', { repoPath });
@@ -126,6 +126,9 @@ export const unstageFiles = (repoPath: string, paths: string[]) =>
 
 export const createCommit = (repoPath: string, message: string) =>
   invoke<string>('create_commit', { repoPath, message });
+
+export const discardFile = (repoPath: string, path: string) =>
+  invoke<void>('discard_file', { repoPath, path });
 
 // ============================================================================
 // Recent Repos
@@ -168,6 +171,9 @@ export const getFileDiff = (repoPath: string, filePath: string, staged: boolean)
 
 export const getCommitDiff = (repoPath: string, commitId: string) =>
   invoke<string>('get_commit_diff', { repoPath, commitId });
+
+export const getFileDiffAtCommit = (repoPath: string, filePath: string, commitSha: string) =>
+  invoke<string>('get_file_diff_at_commit', { repoPath, filePath, commitSha });
 
 export const getCommitFileChanges = (repoPath: string, commitId: string) =>
   invoke<CommitFileChange[]>('get_commit_file_changes', { repoPath, commitId });

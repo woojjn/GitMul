@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo } from 'react';
 import {
   FileText, FilePlus, FileX, ChevronDown, ChevronRight,
   ArrowDown, ArrowUp, List, FolderTree, Folder, FolderOpen,
-  CheckSquare, Square,
+  CheckSquare, Square, RotateCcw,
 } from 'lucide-react';
 import type { FileStatus } from '../types/git';
 
@@ -20,6 +20,7 @@ interface FileChangesProps {
   onStageAll: () => Promise<void>;
   onFileClick: (path: string, staged: boolean) => void;
   onCommit?: (message: string) => void;
+  onDiscard?: (path: string) => Promise<void>;
 }
 
 type ViewMode = 'tree' | 'list';
@@ -145,7 +146,7 @@ function flattenTreePaths(nodes: TreeNode[], expanded: Set<string>, prefix: stri
 /* ================================================================== */
 
 export default function FileChanges({
-  files, onRefresh, onStage, onUnstage, onStageFiles, onUnstageFiles, onStageAll, onFileClick, onCommit,
+  files, onRefresh, onStage, onUnstage, onStageFiles, onUnstageFiles, onStageAll, onFileClick, onCommit, onDiscard,
 }: FileChangesProps) {
   const [unstagedOpen, setUnstagedOpen] = useState(true);
   const [stagedOpen, setStagedOpen] = useState(true);
@@ -371,11 +372,25 @@ export default function FileChanges({
             title="Unstage"
           ><ArrowUp size={12} className="text-[#e57373]" /></button>
         ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); onStage(file.path); }}
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[#555] transition-all flex-shrink-0"
-            title="Stage"
-          ><ArrowDown size={12} className="text-[#73c991]" /></button>
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); onStage(file.path); }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[#555] transition-all flex-shrink-0"
+              title="Stage"
+            ><ArrowDown size={12} className="text-[#73c991]" /></button>
+            {onDiscard && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`'${file.path}' 변경사항을 되돌리겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+                    onDiscard(file.path);
+                  }
+                }}
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[#555] transition-all flex-shrink-0"
+                title="Discard changes"
+              ><RotateCcw size={11} className="text-[#f4a261]" /></button>
+            )}
+          </>
         )}
       </div>
     );
@@ -479,11 +494,25 @@ export default function FileChanges({
             title="Unstage"
           ><ArrowUp size={12} className="text-[#e57373]" /></button>
         ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); onStage(file.path); }}
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[#555] transition-all flex-shrink-0 mr-1"
-            title="Stage"
-          ><ArrowDown size={12} className="text-[#73c991]" /></button>
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); onStage(file.path); }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[#555] transition-all flex-shrink-0"
+              title="Stage"
+            ><ArrowDown size={12} className="text-[#73c991]" /></button>
+            {onDiscard && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`'${file.path}' 변경사항을 되돌리겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+                    onDiscard(file.path);
+                  }
+                }}
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[#555] transition-all flex-shrink-0 mr-1"
+                title="Discard changes"
+              ><RotateCcw size={11} className="text-[#f4a261]" /></button>
+            )}
+          </>
         )}
       </div>
     );

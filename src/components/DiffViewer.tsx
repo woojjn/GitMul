@@ -7,6 +7,7 @@ interface DiffViewerProps {
   repoPath: string;
   filePath: string;
   staged: boolean;
+  commitSha?: string;
   onClose?: () => void;
 }
 
@@ -39,6 +40,7 @@ function TextDiffViewer({
   repoPath,
   filePath,
   staged,
+  commitSha,
   onClose,
 }: DiffViewerProps) {
   const [parsedDiff, setParsedDiff] = useState<ParsedDiff | null>(null);
@@ -49,13 +51,15 @@ function TextDiffViewer({
 
   useEffect(() => {
     loadDiff();
-  }, [repoPath, filePath, staged]);
+  }, [repoPath, filePath, staged, commitSha]);
 
   const loadDiff = async () => {
     try {
       setLoading(true);
       setError('');
-      const diff = await api.getFileDiff(repoPath, filePath, staged);
+      const diff = commitSha
+        ? await api.getFileDiffAtCommit(repoPath, filePath, commitSha)
+        : await api.getFileDiff(repoPath, filePath, staged);
       const parsed = await api.parseDiff(diff);
       setParsedDiff(parsed);
     } catch (err: any) {

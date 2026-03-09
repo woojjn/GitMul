@@ -15,6 +15,8 @@ interface CommitHistoryProps {
   tags?: { name: string; sha?: string; target?: string }[];
   onLoadMore?: () => void;
   hasMore?: boolean;
+  allBranches?: boolean;
+  onAllBranchesChange?: (value: boolean) => void;
 }
 
 interface ContextMenuState {
@@ -221,6 +223,8 @@ export default function CommitHistory({
   tags,
   onLoadMore,
   hasMore = false,
+  allBranches = false,
+  onAllBranchesChange,
 }: CommitHistoryProps) {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     show: false, x: 0, y: 0, commit: null,
@@ -429,7 +433,7 @@ export default function CommitHistory({
 
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e]">
-      {/* Search bar */}
+      {/* Search bar + All Branches toggle */}
       <div className="flex items-center gap-1.5 px-2 py-1.5 bg-[#252526] border-b border-[#3c3c3c] flex-shrink-0">
         <Search size={12} className="text-[#666] flex-shrink-0" />
         <input
@@ -455,6 +459,20 @@ export default function CommitHistory({
         {searchResults && !searching && (
           <span className="text-[10px] text-[#666]">{searchResults.length}개</span>
         )}
+        {onAllBranchesChange && (
+          <button
+            onClick={() => onAllBranchesChange(!allBranches)}
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0 ${
+              allBranches
+                ? 'bg-[#094771] text-[#4fc1ff]'
+                : 'text-[#666] hover:text-[#ccc] hover:bg-[#37373d]'
+            }`}
+            title="모든 브랜치 커밋 표시"
+          >
+            <GitBranch size={11} />
+            All
+          </button>
+        )}
       </div>
 
       {/* Column headers */}
@@ -473,7 +491,8 @@ export default function CommitHistory({
             {searchQuery ? '검색 결과가 없습니다' : 'No commits'}
           </div>
         ) : (
-          displayCommits.map((commit, idx) => {
+          <>
+          {displayCommits.map((commit, idx) => {
             const isSelected = selectedCommitSha === commit.sha;
             const isMerge = commit.parent_ids.length > 1;
             const branchLabels = getBranchLabels(commit.sha);
@@ -554,7 +573,7 @@ export default function CommitHistory({
                 </div>
               </div>
             );
-          })
+          })}
           {/* Load more sentinel / button */}
           {!searchQuery && hasMore && (
             <div ref={loadMoreRef} className="py-2 text-center">
@@ -567,6 +586,7 @@ export default function CommitHistory({
               </button>
             </div>
           )}
+          </>
         )}
       </div>
 

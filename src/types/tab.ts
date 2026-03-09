@@ -24,7 +24,7 @@ export interface TabUIState {
   
   // File views
   fileHistoryPath: string | null;
-  selectedFile: { path: string; staged: boolean } | null;
+  selectedFile: { path: string; staged: boolean; commitSha?: string } | null;
   
   // Commit detail view
   selectedCommitSha: string | null;
