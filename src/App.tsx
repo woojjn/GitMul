@@ -80,6 +80,7 @@ function App() {
 
   // Commit pagination
   const [commitLimit, setCommitLimit] = useState(100);
+  const [allBranches, setAllBranches] = useState(true);
 
   // Repository operations
   const { recentRepos, loadRecentRepos, openRepository, openRepositoryPath, cloneRepository, refreshRepository, loadMoreCommits } = useRepository({
@@ -91,8 +92,32 @@ function App() {
   const handleLoadMoreCommits = useCallback(async () => {
     const newLimit = commitLimit + 100;
     setCommitLimit(newLimit);
-    await loadMoreCommits(newLimit);
-  }, [commitLimit, loadMoreCommits]);
+    await loadMoreCommits(newLimit, allBranches);
+  }, [commitLimit, loadMoreCommits, allBranches]);
+
+  const handleAllBranchesChange = useCallback(async (value: boolean) => {
+    setAllBranches(value);
+    const repoPath = activeTab?.dataState.currentRepo?.path;
+    if (!repoPath) return;
+    try {
+      const commits = await api.getCommitHistory(repoPath, commitLimit, value);
+      if (activeTabId) {
+        tabManager.updateTabDataState(activeTabId, { commits });
+      }
+    } catch (e) { /* ignore */ }
+  }, [activeTab, activeTabId, commitLimit, tabManager]);
+
+  const handleDiscard = useCallback(async (filePath: string) => {
+    const repoPath = activeTab?.dataState.currentRepo?.path;
+    if (!repoPath) return;
+    try {
+      await api.discardFile(repoPath, filePath);
+      await refreshRepository();
+      showSuccess(`'${filePath}' 변경사항 되돌리기 완료`);
+    } catch (e) {
+      showError(`되돌리기 실패: ${e}`);
+    }
+  }, [activeTab, refreshRepository, showSuccess, showError]);
 
   // Git operations
   const { stageFile, unstageFile, stageFiles, unstageFiles, stageAll, commit } = useGitOperations({
@@ -270,14 +295,21 @@ function App() {
     if (uiState?.showCommitGraph) return <CommitGraph repoPath={repoPath} commits={dataState.commits} />;
     if (uiState?.showStashManager) return <StashManager repoPath={repoPath} onClose={() => updateTabUIState(activeTabId!, { showStashManager: false })} />;
     if (uiState?.showTagManager) return <TagManager repoPath={repoPath} />;
-    if (uiState?.showReflogViewer) return <ReflogViewer repoPath={repoPath} />;
+    if (uiState?.showReflogViewer) return (
+      <ReflogViewer
+        repoPath={repoPath}
+        onSuccess={showSuccess}
+        onRefresh={refreshRepository}
+        onClose={() => updateTabUIState(activeTabId!, { showReflogViewer: false })}
+      />
+    );
     if (uiState?.showRemoteManager) return <RemoteManager repoPath={repoPath} currentBranch={dataState.currentRepo.current_branch} />;
     if (uiState?.showConflictResolver) return <ConflictResolver repoPath={repoPath} onClose={() => updateTabUIState(activeTabId!, { showConflictResolver: false })} onResolved={refreshRepository} />;
     if (uiState?.showBundleManager) return <BundleManager repoPath={repoPath} onClose={() => updateTabUIState(activeTabId!, { showBundleManager: false })} onSuccess={showSuccess} onError={showError} />;
     if (uiState?.fileHistoryPath) return <FileHistory repoPath={repoPath} filePath={uiState.fileHistoryPath} onClose={() => updateTabUIState(activeTabId!, { fileHistoryPath: null })} />;
     // When in 'changes' view, selectedFile is handled by the master-detail layout (right pane),
     // not as a full-screen overlay. Only show overlay DiffViewer in 'commits' view.
-    if (uiState?.selectedFile && sidebarView !== 'changes') return <DiffViewer repoPath={repoPath} filePath={uiState.selectedFile.path} staged={uiState.selectedFile.staged} onClose={() => updateTabUIState(activeTabId!, { selectedFile: null })} />;
+    if (uiState?.selectedFile && sidebarView !== 'changes') return <DiffViewer repoPath={repoPath} filePath={uiState.selectedFile.path} staged={uiState.selectedFile.staged} commitSha={uiState.selectedFile.commitSha} onClose={() => updateTabUIState(activeTabId!, { selectedFile: null })} />;
 
     return null;
   };
@@ -306,6 +338,7 @@ function App() {
             onCommit={async (msg) => {
               await commit(msg);
             }}
+            onDiscard={handleDiscard}
           />
         </div>
 
@@ -366,6 +399,8 @@ function App() {
             tags={tags}
             onLoadMore={handleLoadMoreCommits}
             hasMore={dataState.commits.length >= commitLimit}
+            allBranches={allBranches}
+            onAllBranchesChange={handleAllBranchesChange}
           />
         </div>
 
@@ -384,7 +419,9 @@ function App() {
               repoPath={dataState.currentRepo.path}
               commit={selectedCommit}
               onViewFileDiff={(filePath) => {
-                updateTabUIState(activeTabId!, { selectedFile: { path: filePath, staged: false } });
+                updateTabUIState(activeTabId!, {
+                  selectedFile: { path: filePath, staged: false, commitSha: selectedCommit?.sha },
+                });
               }}
             />
           </div>

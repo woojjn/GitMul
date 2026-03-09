@@ -6,12 +6,24 @@ import { RotateCcw, X, AlertCircle } from 'lucide-react';
 interface ReflogViewerProps {
   repoPath: string;
   onClose?: () => void;
+  onSuccess?: (msg: string) => void;
+  onRefresh?: () => void;
 }
 
-const ReflogViewer: React.FC<ReflogViewerProps> = ({ repoPath, onClose }) => {
+const TYPE_LABELS = {
+  soft: 'Soft (변경사항 유지, Staged)',
+  mixed: 'Mixed (변경사항 유지, Unstaged)',
+  hard: 'Hard (모든 변경사항 삭제)',
+};
+
+const ReflogViewer: React.FC<ReflogViewerProps> = ({ repoPath, onClose, onSuccess, onRefresh }) => {
   const [reflog, setReflog] = useState<ReflogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingReset, setPendingReset] = useState<{
+    entry: ReflogEntry;
+    resetType: 'soft' | 'mixed' | 'hard';
+  } | null>(null);
 
   useEffect(() => {
     loadReflog();
@@ -30,19 +42,19 @@ const ReflogViewer: React.FC<ReflogViewerProps> = ({ repoPath, onClose }) => {
     }
   };
 
-  const handleReset = async (entry: ReflogEntry, resetType: 'soft' | 'mixed' | 'hard') => {
-    const typeLabels = {
-      soft: 'Soft (변경사항 유지, Staged)',
-      mixed: 'Mixed (변경사항 유지, Unstaged)',
-      hard: 'Hard (모든 변경사항 삭제)',
-    };
+  const handleReset = (entry: ReflogEntry, resetType: 'soft' | 'mixed' | 'hard') => {
+    setPendingReset({ entry, resetType });
+  };
 
-    if (!confirm(`${typeLabels[resetType]} 리셋을 실행하시겠습니까?\n${entry.message}`)) return;
-
+  const confirmReset = async () => {
+    if (!pendingReset) return;
+    const { entry, resetType } = pendingReset;
+    setPendingReset(null);
     try {
       setLoading(true);
       await api.resetToReflog(repoPath, entry.new_oid, resetType);
-      alert('리셋이 완료되었습니다');
+      onSuccess?.('리셋이 완료되었습니다');
+      onRefresh?.();
       await loadReflog();
     } catch (err) {
       setError(String(err));
@@ -68,6 +80,30 @@ const ReflogViewer: React.FC<ReflogViewerProps> = ({ repoPath, onClose }) => {
 
   return (
     <div className="flex flex-col h-full">
+      {/* 인라인 확인 다이얼로그 */}
+      {pendingReset && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+            <h3 className="text-white font-semibold mb-2">리셋 확인</h3>
+            <p className="text-[#ccc] text-sm mb-1">{TYPE_LABELS[pendingReset.resetType]}</p>
+            <p className="text-[#888] text-xs mb-4 break-words">{pendingReset.entry.message}</p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setPendingReset(null)}
+                className="px-3 py-1.5 text-sm bg-[#333] text-[#ccc] rounded hover:bg-[#444]"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmReset}
+                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center gap-2">

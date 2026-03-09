@@ -82,12 +82,12 @@ export function useRepository({ tabManager, onSuccess, onError }: UseRepositoryP
    * Load all repository data for a tab.
    * Each loaded independently so partial failures don't block other data.
    */
-  const loadRepositoryData = async (tabId: string, repoPath: string, commitLimit = 100) => {
+  const loadRepositoryData = async (tabId: string, repoPath: string, commitLimit = 100, allBranches = true) => {
     try {
       updateTabDataState(tabId, { loading: true });
 
       const [commitsResult, changesResult, branchesResult] = await Promise.allSettled([
-        api.getCommitHistory(repoPath, commitLimit),
+        api.getCommitHistory(repoPath, commitLimit, allBranches),
         api.getRepositoryStatus(repoPath),
         api.listBranches(repoPath),
       ]);
@@ -138,11 +138,11 @@ export function useRepository({ tabManager, onSuccess, onError }: UseRepositoryP
   };
 
   /** Load additional commits (append to existing). */
-  const loadMoreCommits = async (commitLimit: number) => {
+  const loadMoreCommits = async (commitLimit: number, allBranches = false) => {
     if (!activeTabId || !activeTab?.dataState.currentRepo) return;
     const repoPath = activeTab.dataState.currentRepo.path;
     try {
-      const commits = await api.getCommitHistory(repoPath, commitLimit);
+      const commits = await api.getCommitHistory(repoPath, commitLimit, allBranches);
       updateTabDataState(activeTabId, { commits });
     } catch (error) {
       onError(`커밋 추가 로드 실패: ${error}`);
