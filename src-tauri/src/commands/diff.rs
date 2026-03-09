@@ -69,6 +69,51 @@ pub async fn get_file_diff(
     Ok(patch_text)
 }
 
+/// Get diff for a specific file at a specific commit (vs its parent).
+#[tauri::command]
+pub async fn get_file_diff_at_commit(
+    repo_path: String,
+    file_path: String,
+    commit_sha: String,
+) -> Result<String, String> {
+    let normalized_path = normalize_unicode(&file_path);
+    let repo = open_repo(&repo_path)?;
+    let oid = Oid::from_str(&commit_sha).map_err(|e| format!("잘못된 커밋 SHA: {}", e))?;
+    let commit = repo.find_commit(oid).map_err(|e| format!("커밋 찾기 실패: {}", e))?;
+    let commit_tree = commit.tree().map_err(|e| format!("트리 접근 실패: {}", e))?;
+
+    let parent_tree = if commit.parent_count() > 0 {
+        Some(
+            commit
+                .parent(0)
+                .map_err(|e| format!("부모 커밋 접근 실패: {}", e))?
+                .tree()
+                .map_err(|e| format!("부모 트리 접근 실패: {}", e))?,
+        )
+    } else {
+        None
+    };
+
+    let mut opts = DiffOptions::new();
+    opts.pathspec(&normalized_path);
+    opts.context_lines(3);
+    opts.interhunk_lines(0);
+
+    let diff = repo
+        .diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), Some(&mut opts))
+        .map_err(|e| format!("Diff 생성 실패: {}", e))?;
+
+    let mut patch_text = String::new();
+    diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+        let content = String::from_utf8_lossy(line.content());
+        patch_text.push_str(&content);
+        true
+    })
+    .map_err(|e| format!("Diff 출력 실패: {}", e))?;
+
+    Ok(patch_text)
+}
+
 /// Get diff for a specific commit.
 #[tauri::command]
 pub async fn get_commit_diff(repo_path: String, commit_id: String) -> Result<String, String> {

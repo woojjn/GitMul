@@ -1,4 +1,4 @@
-use git2::{AutotagOption, Cred, FetchOptions, RemoteCallbacks, Repository};
+use git2::{AutotagOption, Cred, FetchOptions, RemoteCallbacks};
 
 /// Clone a remote repository into the given local path.
 ///

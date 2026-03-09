@@ -13,7 +13,7 @@ pub async fn open_repository(path: String) -> Result<RepositoryInfo, String> {
 
     let branch = match repo.head() {
         Ok(head) => head.shorthand().unwrap_or("detached").to_string(),
-        Err(_) if repo.is_head_unborn() => {
+        Err(_) if repo.is_empty().unwrap_or(false) => {
             // 첫 커밋 전(unborn): HEAD 파일에서 브랜치명 읽기
             // 내용 예: "ref: refs/heads/main\n"
             let head_file = repo.path().join("HEAD");
@@ -50,20 +50,49 @@ pub async fn open_repository(path: String) -> Result<RepositoryInfo, String> {
 }
 
 /// Get commit history (most recent first).
+/// If `all_branches` is true, includes commits reachable from ALL local branches and tags.
 #[tauri::command]
 pub async fn get_commit_history(
     repo_path: String,
     limit: usize,
+    all_branches: Option<bool>,
 ) -> Result<Vec<CommitInfo>, String> {
     let repo = open_repo(&repo_path)?;
 
     // Unborn HEAD (no commits yet): return empty list instead of error
-    if repo.is_head_unborn() {
+    if repo.is_empty().unwrap_or(false) {
         return Ok(Vec::new());
     }
 
     let mut revwalk = repo.revwalk().map_err(|e| format!("Revwalk 생성 실패: {}", e))?;
-    revwalk.push_head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
+
+    if all_branches.unwrap_or(false) {
+        // Push all local branches
+        let branches = repo.branches(Some(git2::BranchType::Local))
+            .map_err(|e| format!("브랜치 목록 실패: {}", e))?;
+        for branch_result in branches {
+            if let Ok((branch, _)) = branch_result {
+                if let Ok(Some(_name)) = branch.name() {
+                    if let Ok(oid) = branch.get().peel_to_commit().map(|c| c.id()) {
+                        let _ = revwalk.push(oid);
+                    }
+                }
+            }
+        }
+        // Also push remote-tracking branches
+        let remote_branches = repo.branches(Some(git2::BranchType::Remote))
+            .map_err(|e| format!("원격 브랜치 목록 실패: {}", e))?;
+        for branch_result in remote_branches {
+            if let Ok((branch, _)) = branch_result {
+                if let Ok(oid) = branch.get().peel_to_commit().map(|c| c.id()) {
+                    let _ = revwalk.push(oid);
+                }
+            }
+        }
+    } else {
+        revwalk.push_head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
+    }
+
     revwalk
         .set_sorting(git2::Sort::TIME)
         .map_err(|e| format!("정렬 설정 실패: {}", e))?;
@@ -267,11 +296,48 @@ pub async fn stage_all(repo_path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Discard changes to a file (restore from HEAD or delete if untracked).
+#[tauri::command]
+pub async fn discard_file(repo_path: String, path: String) -> Result<(), String> {
+    let repo = open_repo(&repo_path)?;
+    let normalized = normalize_unicode(&path);
+    let abs_path = std::path::Path::new(&repo_path).join(&normalized);
+
+    // Check if the file is untracked (not in HEAD) → just delete it
+    let in_head = repo.head().ok()
+        .and_then(|h| h.peel_to_commit().ok())
+        .and_then(|c| c.tree().ok())
+        .and_then(|t| t.get_path(std::path::Path::new(&normalized)).ok())
+        .is_some();
+
+    if !in_head {
+        // Untracked file: delete from working tree
+        if abs_path.is_dir() {
+            std::fs::remove_dir_all(&abs_path)
+                .map_err(|e| format!("디렉토리 삭제 실패: {}", e))?;
+        } else if abs_path.exists() {
+            std::fs::remove_file(&abs_path)
+                .map_err(|e| format!("파일 삭제 실패: {}", e))?;
+        }
+        return Ok(());
+    }
+
+    // Tracked file: restore from HEAD via checkout
+    let mut checkout = git2::build::CheckoutBuilder::new();
+    checkout.path(&normalized);
+    checkout.force();
+    repo.checkout_head(Some(&mut checkout))
+        .map_err(|e| format!("파일 되돌리기 실패: {}", e))?;
+
+    Ok(())
+}
+
 /// Create a new commit.
 #[tauri::command]
 pub async fn create_commit(repo_path: String, message: String) -> Result<String, String> {
     let repo = open_repo(&repo_path)?;
-    ensure_utf8_config(&repo)?;
+    // Best-effort: config failure must not block committing
+    let _ = ensure_utf8_config(&repo);
 
     let signature = repo
         .signature()
@@ -324,7 +390,7 @@ pub async fn search_commits(
 ) -> Result<Vec<CommitInfo>, String> {
     let repo = open_repo(&repo_path)?;
 
-    if repo.is_head_unborn() {
+    if repo.is_empty().unwrap_or(false) {
         return Ok(Vec::new());
     }
 

@@ -1,7 +1,7 @@
 use git2::BranchType;
 
 use super::models::BranchInfo;
-use super::utils::{normalize_unicode, open_repo};
+use super::utils::{ensure_utf8_config, normalize_unicode, open_repo};
 
 /// List all local branches.
 #[tauri::command]
@@ -97,6 +97,8 @@ pub async fn switch_branch(
 ) -> Result<String, String> {
     let normalized_name = normalize_unicode(&branch_name);
     let repo = open_repo(&repo_path)?;
+    // Best-effort: ensure Korean file names work correctly after checkout
+    let _ = ensure_utf8_config(&repo);
     let force = force.unwrap_or(false);
 
     // 미저장 변경사항 감지 (force 모드가 아닐 때만)

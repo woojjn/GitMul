@@ -11,11 +11,11 @@ use commands::cherrypick::{cherry_pick, cherry_pick_abort, cherry_pick_continue}
 use commands::conflict::{abort_merge, get_conflicts, resolve_conflict};
 use commands::diff::{
     check_is_image, get_commit_diff, get_commit_file_changes, get_diff_stats, get_file_content,
-    get_file_diff, get_image_at_commit, get_image_diff, parse_diff,
+    get_file_diff, get_file_diff_at_commit, get_image_at_commit, get_image_diff, parse_diff,
 };
 use commands::git::{
-    create_commit, get_commit_history, get_repository_status, open_repository, stage_all,
-    stage_file, unstage_file,
+    create_commit, discard_file, get_commit_history, get_repository_status, open_repository,
+    stage_all, stage_file, unstage_file,
 };
 use commands::history::{get_file_at_commit, get_file_history};
 use commands::merge::{can_merge, get_merge_conflicts, merge_branch};
@@ -46,6 +46,7 @@ fn main() {
             stage_file,
             unstage_file,
             stage_all,
+            discard_file,
             create_commit,
             // Recent repos
             get_recent_repos,
@@ -59,6 +60,7 @@ fn main() {
             get_current_branch,
             // Diff
             get_file_diff,
+            get_file_diff_at_commit,
             get_commit_diff,
             get_commit_file_changes,
             parse_diff,
