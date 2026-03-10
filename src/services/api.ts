@@ -166,14 +166,14 @@ export const renameBranch = (repoPath: string, oldName: string, newName: string)
 // Diff
 // ============================================================================
 
-export const getFileDiff = (repoPath: string, filePath: string, staged: boolean) =>
-  invoke<string>('get_file_diff', { repoPath, filePath, staged });
+export const getFileDiff = (repoPath: string, filePath: string, staged: boolean, contextLines?: number) =>
+  invoke<string>('get_file_diff', { repoPath, filePath, staged, contextLines: contextLines ?? null });
 
 export const getCommitDiff = (repoPath: string, commitId: string) =>
   invoke<string>('get_commit_diff', { repoPath, commitId });
 
-export const getFileDiffAtCommit = (repoPath: string, filePath: string, commitSha: string) =>
-  invoke<string>('get_file_diff_at_commit', { repoPath, filePath, commitSha });
+export const getFileDiffAtCommit = (repoPath: string, filePath: string, commitSha: string, contextLines?: number) =>
+  invoke<string>('get_file_diff_at_commit', { repoPath, filePath, commitSha, contextLines: contextLines ?? null });
 
 export const getCommitFileChanges = (repoPath: string, commitId: string) =>
   invoke<CommitFileChange[]>('get_commit_file_changes', { repoPath, commitId });

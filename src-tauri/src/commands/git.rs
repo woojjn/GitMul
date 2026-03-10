@@ -94,7 +94,7 @@ pub async fn get_commit_history(
     }
 
     revwalk
-        .set_sorting(git2::Sort::TIME)
+        .set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
         .map_err(|e| format!("정렬 설정 실패: {}", e))?;
 
     let mut commits = Vec::new();
@@ -398,7 +398,7 @@ pub async fn search_commits(
     let mut revwalk = repo.revwalk().map_err(|e| format!("Revwalk 생성 실패: {}", e))?;
     revwalk.push_head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
     revwalk
-        .set_sorting(git2::Sort::TIME)
+        .set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
         .map_err(|e| format!("정렬 설정 실패: {}", e))?;
 
     let mut results = Vec::new();

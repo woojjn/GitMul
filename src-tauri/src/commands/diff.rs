@@ -19,6 +19,7 @@ pub async fn get_file_diff(
     repo_path: String,
     file_path: String,
     staged: bool,
+    context_lines: Option<u32>,
 ) -> Result<String, String> {
     let normalized_path = normalize_unicode(&file_path);
 
@@ -41,8 +42,9 @@ pub async fn get_file_diff(
 
     let mut opts = DiffOptions::new();
     opts.pathspec(&normalized_path);
-    opts.context_lines(3);
+    opts.context_lines(context_lines.unwrap_or(3));
     opts.interhunk_lines(0);
+    opts.ignore_whitespace_eol(true);
 
     let diff = if staged {
         let head = repo.head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
@@ -60,8 +62,18 @@ pub async fn get_file_diff(
 
     let mut patch_text = String::new();
     diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+        let origin = line.origin();
+        // Content lines: prepend origin character (+, -, space)
+        // Header lines (F, H, etc.): output content as-is (already includes full text)
+        if matches!(origin, '+' | '-' | ' ') {
+            patch_text.push(origin);
+        }
         let content = String::from_utf8_lossy(line.content());
         patch_text.push_str(&content);
+        // Ensure line ends with newline for proper parsing
+        if !content.ends_with('\n') {
+            patch_text.push('\n');
+        }
         true
     })
     .map_err(|e| format!("Diff 출력 실패: {}", e))?;
@@ -75,6 +87,7 @@ pub async fn get_file_diff_at_commit(
     repo_path: String,
     file_path: String,
     commit_sha: String,
+    context_lines: Option<u32>,
 ) -> Result<String, String> {
     let normalized_path = normalize_unicode(&file_path);
     let repo = open_repo(&repo_path)?;
@@ -96,8 +109,9 @@ pub async fn get_file_diff_at_commit(
 
     let mut opts = DiffOptions::new();
     opts.pathspec(&normalized_path);
-    opts.context_lines(3);
+    opts.context_lines(context_lines.unwrap_or(3));
     opts.interhunk_lines(0);
+    opts.ignore_whitespace_eol(true);
 
     let diff = repo
         .diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), Some(&mut opts))
@@ -105,8 +119,15 @@ pub async fn get_file_diff_at_commit(
 
     let mut patch_text = String::new();
     diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+        let origin = line.origin();
+        if matches!(origin, '+' | '-' | ' ') {
+            patch_text.push(origin);
+        }
         let content = String::from_utf8_lossy(line.content());
         patch_text.push_str(&content);
+        if !content.ends_with('\n') {
+            patch_text.push('\n');
+        }
         true
     })
     .map_err(|e| format!("Diff 출력 실패: {}", e))?;
@@ -137,6 +158,7 @@ pub async fn get_commit_diff(repo_path: String, commit_id: String) -> Result<Str
 
     let mut opts = DiffOptions::new();
     opts.context_lines(3);
+    opts.ignore_whitespace_eol(true);
 
     let diff = repo
         .diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), Some(&mut opts))
@@ -144,8 +166,15 @@ pub async fn get_commit_diff(repo_path: String, commit_id: String) -> Result<Str
 
     let mut patch_text = String::new();
     diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+        let origin = line.origin();
+        if matches!(origin, '+' | '-' | ' ') {
+            patch_text.push(origin);
+        }
         let content = String::from_utf8_lossy(line.content());
         patch_text.push_str(&content);
+        if !content.ends_with('\n') {
+            patch_text.push('\n');
+        }
         true
     })
     .map_err(|e| format!("Diff 출력 실패: {}", e))?;
@@ -415,6 +444,9 @@ pub async fn get_file_content(
 pub async fn get_diff_stats(repo_path: String, staged: bool) -> Result<Vec<DiffStat>, String> {
     let repo = open_repo(&repo_path)?;
 
+    let mut opts = DiffOptions::new();
+    opts.ignore_whitespace_eol(true);
+
     let diff = if staged {
         let head = repo.head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
         let head_tree = head.peel_to_tree().map_err(|e| format!("트리 접근 실패: {}", e))?;
@@ -422,10 +454,10 @@ pub async fn get_diff_stats(repo_path: String, staged: bool) -> Result<Vec<DiffS
         let index_tree = repo
             .find_tree(index.write_tree().map_err(|e| format!("트리 쓰기 실패: {}", e))?)
             .map_err(|e| format!("트리 찾기 실패: {}", e))?;
-        repo.diff_tree_to_tree(Some(&head_tree), Some(&index_tree), None)
+        repo.diff_tree_to_tree(Some(&head_tree), Some(&index_tree), Some(&mut opts))
             .map_err(|e| format!("Diff 생성 실패: {}", e))?
     } else {
-        repo.diff_index_to_workdir(None, None)
+        repo.diff_index_to_workdir(None, Some(&mut opts))
             .map_err(|e| format!("Diff 생성 실패: {}", e))?
     };
 

@@ -3,18 +3,20 @@ use git2::BranchType;
 use super::models::BranchInfo;
 use super::utils::{ensure_utf8_config, normalize_unicode, open_repo};
 
-/// List all local branches.
+/// List all branches (local and remote).
 #[tauri::command]
 pub async fn list_branches(repo_path: String) -> Result<Vec<BranchInfo>, String> {
     let repo = open_repo(&repo_path)?;
     let mut branches = Vec::new();
 
+    // Iterate all branches (local + remote)
     let branch_iter = repo
-        .branches(Some(BranchType::Local))
+        .branches(None)
         .map_err(|e| format!("브랜치 목록 조회 실패: {}", e))?;
 
     for branch_result in branch_iter {
-        let (branch, _) = branch_result.map_err(|e| format!("브랜치 읽기 실패: {}", e))?;
+        let (branch, branch_type) =
+            branch_result.map_err(|e| format!("브랜치 읽기 실패: {}", e))?;
 
         let name = branch
             .name()
@@ -23,18 +25,19 @@ pub async fn list_branches(repo_path: String) -> Result<Vec<BranchInfo>, String>
             .to_string();
 
         let normalized_name = normalize_unicode(&name);
-        let is_current = branch.is_head();
+        let is_remote = branch_type == BranchType::Remote;
+        let is_current = !is_remote && branch.is_head();
 
-        let commit = branch
-            .get()
-            .peel_to_commit()
-            .map_err(|e| format!("커밋 접근 실패: {}", e))?;
+        let commit = match branch.get().peel_to_commit() {
+            Ok(c) => c,
+            Err(_) => continue, // skip branches that can't resolve to a commit
+        };
 
         branches.push(BranchInfo {
             name: normalized_name,
             is_current,
-            is_remote: false,
-            commit_sha: commit.id().to_string()[..7].to_string(),
+            is_remote,
+            commit_sha: commit.id().to_string(),
             commit_message: commit
                 .message()
                 .unwrap_or("")
@@ -47,7 +50,12 @@ pub async fn list_branches(repo_path: String) -> Result<Vec<BranchInfo>, String>
         });
     }
 
-    branches.sort_by(|a, b| b.is_current.cmp(&a.is_current));
+    // Current branch first, then local, then remote
+    branches.sort_by(|a, b| {
+        b.is_current
+            .cmp(&a.is_current)
+            .then(a.is_remote.cmp(&b.is_remote))
+    });
     Ok(branches)
 }
 
@@ -308,7 +316,7 @@ mod tests {
         create_branch(repo_path.clone(), "develop".to_string())
             .await
             .unwrap();
-        let result = switch_branch(repo_path.clone(), "develop".to_string()).await;
+        let result = switch_branch(repo_path.clone(), "develop".to_string(), None).await;
         assert!(result.is_ok());
 
         let current = get_current_branch(repo_path).await.unwrap();
@@ -321,7 +329,7 @@ mod tests {
         create_branch(repo_path.clone(), "temp".to_string())
             .await
             .unwrap();
-        let result = delete_branch(repo_path.clone(), "temp".to_string()).await;
+        let result = delete_branch(repo_path.clone(), "temp".to_string(), None).await;
         assert!(result.is_ok());
 
         let branches = list_branches(repo_path).await.unwrap();

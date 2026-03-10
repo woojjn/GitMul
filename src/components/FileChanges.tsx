@@ -12,6 +12,7 @@ import type { FileStatus } from '../types/git';
 
 interface FileChangesProps {
   files: FileStatus[];
+  repoPath?: string;
   onRefresh: () => void;
   onStage: (path: string) => Promise<void>;
   onUnstage: (path: string) => Promise<void>;
@@ -86,6 +87,7 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   );
 }
+
 
 /* ================================================================== */
 /* Tree builder                                                        */
@@ -365,6 +367,7 @@ export default function FileChanges({
         <StatusBadge status={file.status} />
         <StatusIcon status={file.status} />
         <span className="truncate flex-1 font-mono text-[11px]" title={file.path}>{file.path}</span>
+
         {staged ? (
           <button
             onClick={(e) => { e.stopPropagation(); onUnstage(file.path); }}
@@ -486,6 +489,7 @@ export default function FileChanges({
         }
         <StatusIcon status={file.status} />
         <span className="truncate flex-1 font-mono text-[11px]" title={file.path}>{node.name}</span>
+
         <StatusBadge status={file.status} />
         {staged ? (
           <button

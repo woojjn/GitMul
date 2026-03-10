@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FolderOpen } from 'lucide-react';
 
 // Components
@@ -83,10 +83,14 @@ function App() {
   const [allBranches, setAllBranches] = useState(true);
 
   // Repository operations
+  const allBranchesRef = useRef(allBranches);
+  allBranchesRef.current = allBranches;
+
   const { recentRepos, loadRecentRepos, openRepository, openRepositoryPath, cloneRepository, refreshRepository, loadMoreCommits } = useRepository({
     tabManager,
     onSuccess: showSuccess,
     onError: showError,
+    getAllBranches: () => allBranchesRef.current,
   });
 
   const handleLoadMoreCommits = useCallback(async () => {
@@ -104,7 +108,9 @@ function App() {
       if (activeTabId) {
         tabManager.updateTabDataState(activeTabId, { commits });
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error('Failed to toggle allBranches:', e);
+    }
   }, [activeTab, activeTabId, commitLimit, tabManager]);
 
   const handleDiscard = useCallback(async (filePath: string) => {
@@ -326,6 +332,7 @@ function App() {
         <div style={{ width: fileListWidth, minWidth: 180, maxWidth: 600 }} className="flex-shrink-0 flex flex-col">
           <FileChanges
             files={dataState.fileChanges}
+            repoPath={dataState.currentRepo.path}
             onStage={stageFile}
             onUnstage={unstageFile}
             onStageFiles={stageFiles}

@@ -17,9 +17,10 @@ interface UseRepositoryParams {
   tabManager: TabManager;
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
+  getAllBranches?: () => boolean;
 }
 
-export function useRepository({ tabManager, onSuccess, onError }: UseRepositoryParams) {
+export function useRepository({ tabManager, onSuccess, onError, getAllBranches }: UseRepositoryParams) {
   const [recentRepos, setRecentRepos] = useState<RecentRepo[]>([]);
 
   const { tabs, activeTabId, activeTab, addTab, switchTab, updateTabDataState } = tabManager;
@@ -134,7 +135,8 @@ export function useRepository({ tabManager, onSuccess, onError }: UseRepositoryP
   /** Refresh current active tab's repository data. */
   const refreshRepository = async (commitLimit?: number) => {
     if (!activeTabId || !activeTab?.dataState.currentRepo) return;
-    await loadRepositoryData(activeTabId, activeTab.dataState.currentRepo.path, commitLimit);
+    const allBr = getAllBranches ? getAllBranches() : true;
+    await loadRepositoryData(activeTabId, activeTab.dataState.currentRepo.path, commitLimit, allBr);
   };
 
   /** Load additional commits (append to existing). */
