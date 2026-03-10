@@ -1,6 +1,6 @@
 [package]
 name = "gitmul"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fork-like Git GUI with Korean support"
 authors = ["you"]
 edition = "2021"
