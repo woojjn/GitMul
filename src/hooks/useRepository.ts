@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from '../services/api';
 import type { RecentRepo } from '../types/git';
 import type { TabManager } from './useTabManager';
@@ -150,6 +150,74 @@ export function useRepository({ tabManager, onSuccess, onError, getAllBranches }
       onError(`커밋 추가 로드 실패: ${error}`);
     }
   };
+
+  // ── Auto-refresh: window focus + periodic polling ──────────────────
+
+  const refreshingRef = useRef(false);
+
+  const silentRefresh = useCallback(async () => {
+    if (refreshingRef.current) return;
+    const tabId = tabManager.activeTabId;
+    const tab = tabManager.activeTab;
+    if (!tabId || !tab?.dataState.currentRepo) return;
+
+    refreshingRef.current = true;
+    try {
+      const repoPath = tab.dataState.currentRepo.path;
+      const allBr = getAllBranches ? getAllBranches() : true;
+
+      const [changesResult, branchesResult] = await Promise.allSettled([
+        api.getRepositoryStatus(repoPath),
+        api.listBranches(repoPath),
+      ]);
+
+      const newChanges = changesResult.status === 'fulfilled' ? changesResult.value : null;
+      const newBranches = branchesResult.status === 'fulfilled' ? branchesResult.value : null;
+
+      // Only update if data actually changed to avoid unnecessary re-renders
+      const oldChanges = tab.dataState.fileChanges;
+      const changesChanged = newChanges && JSON.stringify(newChanges) !== JSON.stringify(oldChanges);
+      const branchesChanged = newBranches && JSON.stringify(newBranches) !== JSON.stringify(tab.dataState.branches);
+
+      if (changesChanged || branchesChanged) {
+        const update: Record<string, any> = {};
+        if (changesChanged) update.fileChanges = newChanges;
+        if (branchesChanged) update.branches = newBranches;
+        updateTabDataState(tabId, update);
+
+        // Also refresh commits if file changes changed (likely new commits)
+        if (changesChanged) {
+          try {
+            const commits = await api.getCommitHistory(repoPath, 100, allBr);
+            updateTabDataState(tabId, { commits });
+          } catch {}
+        }
+      }
+    } catch {
+      // Silent failure — don't interrupt user
+    } finally {
+      refreshingRef.current = false;
+    }
+  }, [tabManager, getAllBranches, updateTabDataState]);
+
+  // Refresh on window focus
+  useEffect(() => {
+    const onFocus = () => {
+      silentRefresh();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [silentRefresh]);
+
+  // Periodic polling (every 5 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.hasFocus()) {
+        silentRefresh();
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [silentRefresh]);
 
   /**
    * Auto-load repository data for restored tabs (from localStorage).

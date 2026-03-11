@@ -20,6 +20,7 @@ interface ForkSidebarProps {
   onShowTags: () => void;
   onShowRemotes: () => void;
   onShowStashes: () => void;
+  onSettings?: () => void;
   activeView?: string;
 }
 
@@ -226,6 +227,7 @@ export default function ForkSidebar({
   onShowTags,
   onShowRemotes,
   onShowStashes,
+  onSettings,
   activeView,
 }: ForkSidebarProps) {
   const [filterText, setFilterText] = useState('');
@@ -256,7 +258,7 @@ export default function ForkSidebar({
             <FolderOpen size={13} className="text-[#888] flex-shrink-0" />
             <span className="text-[13px] font-semibold text-white truncate">{currentRepoName}</span>
           </div>
-          <Settings size={12} className="text-[#666] hover:text-[#ccc] cursor-pointer flex-shrink-0" />
+          <Settings size={12} className="text-[#666] hover:text-[#ccc] cursor-pointer flex-shrink-0" onClick={onSettings} />
         </div>
       )}
 

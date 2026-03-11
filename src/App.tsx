@@ -29,6 +29,7 @@ import WelcomeScreen from './components/WelcomeScreen';
 import ToastContainer from './components/Toast';
 import CloneDialog from './components/CloneDialog';
 import ResizeHandle from './components/ResizeHandle';
+import RepoSettingsPanel from './components/RepoSettingsPanel';
 
 // Hooks
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -312,6 +313,7 @@ function App() {
     if (uiState?.showRemoteManager) return <RemoteManager repoPath={repoPath} currentBranch={dataState.currentRepo.current_branch} />;
     if (uiState?.showConflictResolver) return <ConflictResolver repoPath={repoPath} onClose={() => updateTabUIState(activeTabId!, { showConflictResolver: false })} onResolved={refreshRepository} />;
     if (uiState?.showBundleManager) return <BundleManager repoPath={repoPath} onClose={() => updateTabUIState(activeTabId!, { showBundleManager: false })} onSuccess={showSuccess} onError={showError} />;
+    if (uiState?.showRepoSettings) return <RepoSettingsPanel repoPath={repoPath} onClose={() => updateTabUIState(activeTabId!, { showRepoSettings: false })} onSuccess={showSuccess} onError={showError} />;
     if (uiState?.fileHistoryPath) return <FileHistory repoPath={repoPath} filePath={uiState.fileHistoryPath} onClose={() => updateTabUIState(activeTabId!, { fileHistoryPath: null })} />;
     // When in 'changes' view, selectedFile is handled by the master-detail layout (right pane),
     // not as a full-screen overlay. Only show overlay DiffViewer in 'commits' view.
@@ -425,11 +427,7 @@ function App() {
             <CommitDetailPanel
               repoPath={dataState.currentRepo.path}
               commit={selectedCommit}
-              onViewFileDiff={(filePath) => {
-                updateTabUIState(activeTabId!, {
-                  selectedFile: { path: filePath, staged: false, commitSha: selectedCommit?.sha },
-                });
-              }}
+              onViewFileDiff={() => {}}
             />
           </div>
           </>
@@ -614,6 +612,13 @@ function App() {
               if (activeTabId) updateTabUIState(activeTabId, {
                 showStashManager: true, showBranchManager: false, showRemoteManager: false,
                 showTagManager: false, selectedFile: null, fileHistoryPath: null,
+              });
+            }}
+            onSettings={() => {
+              if (activeTabId) updateTabUIState(activeTabId, {
+                showRepoSettings: true, showBranchManager: false, showRemoteManager: false,
+                showStashManager: false, showTagManager: false, showReflogViewer: false,
+                showBundleManager: false, selectedFile: null, fileHistoryPath: null,
               });
             }}
             activeView={overlayContent ? undefined : sidebarView}

@@ -14,6 +14,7 @@ export interface TabUIState {
   showConflictResolver: boolean;
   showMergeDialog: boolean;
   showBundleManager: boolean;
+  showRepoSettings: boolean;
   showCherryPickDialog: boolean;
   showRevertDialog: boolean;
   
@@ -89,6 +90,7 @@ export const createInitialUIState = (): TabUIState => ({
   showConflictResolver: false,
   showMergeDialog: false,
   showBundleManager: false,
+  showRepoSettings: false,
   showCherryPickDialog: false,
   showRevertDialog: false,
   commitDialogOpen: false,

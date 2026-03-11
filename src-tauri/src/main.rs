@@ -36,6 +36,11 @@ use commands::clone::clone_repository;
 use commands::git::search_commits;
 use commands::branch::get_branch_divergence;
 use commands::shell::{open_in_explorer, open_terminal};
+use commands::config::{
+    get_git_config, set_git_config, remove_git_config,
+    get_remote_url, set_remote_url,
+    list_git_hooks, toggle_git_hook,
+};
 
 fn main() {
     tauri::Builder::default()
@@ -135,6 +140,14 @@ fn main() {
             // Shell / System
             open_in_explorer,
             open_terminal,
+            // Config
+            get_git_config,
+            set_git_config,
+            remove_git_config,
+            get_remote_url,
+            set_remote_url,
+            list_git_hooks,
+            toggle_git_hook,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

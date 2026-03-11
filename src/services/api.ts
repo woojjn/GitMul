@@ -415,3 +415,34 @@ export const openInExplorer = (repoPath: string) =>
 
 export const openTerminal = (repoPath: string) =>
   invoke<void>('open_terminal', { repoPath });
+
+// ============================================================================
+// Git Config
+// ============================================================================
+
+export interface HookInfo {
+  name: string;
+  enabled: boolean;
+  has_sample: boolean;
+}
+
+export const getGitConfig = (repoPath: string) =>
+  invoke<Record<string, string>>('get_git_config', { repoPath });
+
+export const setGitConfig = (repoPath: string, key: string, value: string) =>
+  invoke<void>('set_git_config', { repoPath, key, value });
+
+export const removeGitConfig = (repoPath: string, key: string) =>
+  invoke<void>('remove_git_config', { repoPath, key });
+
+export const getRemoteUrl = (repoPath: string, remoteName: string) =>
+  invoke<string>('get_remote_url', { repoPath, remoteName });
+
+export const setRemoteUrl = (repoPath: string, remoteName: string, url: string) =>
+  invoke<void>('set_remote_url', { repoPath, remoteName, url });
+
+export const listGitHooks = (repoPath: string) =>
+  invoke<HookInfo[]>('list_git_hooks', { repoPath });
+
+export const toggleGitHook = (repoPath: string, hookName: string, enable: boolean) =>
+  invoke<void>('toggle_git_hook', { repoPath, hookName, enable });

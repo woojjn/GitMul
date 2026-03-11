@@ -44,8 +44,8 @@ function TextDiffViewer({
   onClose,
 }: DiffViewerProps) {
   const [parsedDiff, setParsedDiff] = useState<ParsedDiff | null>(null);
-  const [viewMode, setViewMode] = useState<'unified' | 'split'>('unified');
-  const [wordDiffEnabled, setWordDiffEnabled] = useState(true);
+  const [viewMode, setViewMode] = useState<'unified' | 'split'>('split');
+  const [wordDiffEnabled, setWordDiffEnabled] = useState(false);
   const [showFullFile, setShowFullFile] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');

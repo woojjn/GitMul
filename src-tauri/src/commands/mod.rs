@@ -21,3 +21,4 @@ pub mod reflog;
 pub mod bundle;
 pub mod clone;
 pub mod shell;
+pub mod config;
