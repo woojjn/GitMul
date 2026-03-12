@@ -49,6 +49,7 @@ function TextDiffViewer({
   const [showFullFile, setShowFullFile] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [forceTextView, setForceTextView] = useState(false);
 
   // Refs for minimap
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -431,7 +432,7 @@ function TextDiffViewer({
     );
   }
 
-  const hasContent = parsedDiff && !parsedDiff.is_binary && parsedDiff.hunks.length > 0;
+  const hasContent = parsedDiff && (!parsedDiff.is_binary || forceTextView) && parsedDiff.hunks.length > 0;
 
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e]">
@@ -514,9 +515,15 @@ function TextDiffViewer({
           ref={scrollContainerRef}
           className="flex-1 overflow-auto"
         >
-          {parsedDiff?.is_binary ? (
-            <div className="p-4 text-center text-[#555] text-[13px]">
-              Binary file — cannot show diff
+          {parsedDiff?.is_binary && !forceTextView ? (
+            <div className="p-4 text-center space-y-3">
+              <p className="text-[#555] text-[13px]">Binary file — diff를 표시할 수 없습니다</p>
+              <button
+                onClick={() => setForceTextView(true)}
+                className="px-3 py-1.5 text-[12px] rounded border border-[#3c3c3c] bg-[#333] text-[#ccc] hover:bg-[#3c3c3c] hover:text-white transition-colors"
+              >
+                텍스트로 보기
+              </button>
             </div>
           ) : !parsedDiff || parsedDiff.hunks.length === 0 ? (
             <div className="p-4 text-center text-[#555] text-[13px]">

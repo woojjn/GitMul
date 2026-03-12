@@ -45,6 +45,10 @@ pub async fn get_file_diff(
     opts.context_lines(context_lines.unwrap_or(3));
     opts.interhunk_lines(0);
     opts.ignore_whitespace_eol(true);
+    // Force text diff for non-image files to avoid git2 binary misdetection
+    if !is_image_file(&normalized_path) {
+        opts.force_text(true);
+    }
 
     let diff = if staged {
         let head = repo.head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
@@ -112,6 +116,9 @@ pub async fn get_file_diff_at_commit(
     opts.context_lines(context_lines.unwrap_or(3));
     opts.interhunk_lines(0);
     opts.ignore_whitespace_eol(true);
+    if !is_image_file(&normalized_path) {
+        opts.force_text(true);
+    }
 
     let diff = repo
         .diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), Some(&mut opts))
@@ -159,6 +166,8 @@ pub async fn get_commit_diff(repo_path: String, commit_id: String) -> Result<Str
     let mut opts = DiffOptions::new();
     opts.context_lines(3);
     opts.ignore_whitespace_eol(true);
+    // Force text so all non-image files produce patch output
+    opts.force_text(true);
 
     let diff = repo
         .diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), Some(&mut opts))
@@ -206,11 +215,15 @@ pub async fn get_commit_file_changes(
         None
     };
 
+    let mut opts = DiffOptions::new();
+    opts.force_text(true);
+
     let diff = repo
-        .diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), None)
+        .diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_tree), Some(&mut opts))
         .map_err(|e| format!("Diff 생성 실패: {}", e))?;
 
     let mut changes: Vec<CommitFileChange> = Vec::new();
+    let mut blob_oids_to_check: Vec<(usize, Oid)> = Vec::new();
 
     // Collect file info
     diff.foreach(
@@ -251,14 +264,23 @@ pub async fn get_commit_file_changes(
                 None
             };
 
+            let git2_binary = delta.new_file().is_binary() || delta.old_file().is_binary();
+            // Store the new file's blob OID for content-based binary check later
+            let blob_oid = delta.new_file().id();
             changes.push(CommitFileChange {
                 path: normalize_unicode(&path),
                 status: status.to_string(),
                 additions: 0,
                 deletions: 0,
-                is_binary: delta.new_file().is_binary() || delta.old_file().is_binary(),
+                is_binary: is_truly_binary(&path, git2_binary),
                 old_path: renamed_old,
             });
+            // If git2 says binary but extension-based check says text,
+            // we already override. For unknown extensions where git2 says binary,
+            // store OID for post-check.
+            if git2_binary && !is_image_file(&path) && !is_known_text_extension(&path) {
+                blob_oids_to_check.push((changes.len() - 1, blob_oid));
+            }
             true
         },
         None,
@@ -266,6 +288,16 @@ pub async fn get_commit_file_changes(
         None,
     )
     .map_err(|e| format!("Diff 순회 실패: {}", e))?;
+
+    // Post-check: for files with unknown extensions that git2 flagged as binary,
+    // read actual blob content to verify
+    for (idx, oid) in &blob_oids_to_check {
+        if !oid.is_zero() {
+            if let Ok(blob) = repo.find_blob(*oid) {
+                changes[*idx].is_binary = content_looks_binary(blob.content());
+            }
+        }
+    }
 
     // Count additions/deletions per file
     if !changes.is_empty() {
@@ -446,6 +478,7 @@ pub async fn get_diff_stats(repo_path: String, staged: bool) -> Result<Vec<DiffS
 
     let mut opts = DiffOptions::new();
     opts.ignore_whitespace_eol(true);
+    opts.force_text(true);
 
     let diff = if staged {
         let head = repo.head().map_err(|e| format!("HEAD 접근 실패: {}", e))?;
@@ -462,18 +495,24 @@ pub async fn get_diff_stats(repo_path: String, staged: bool) -> Result<Vec<DiffS
     };
 
     let mut stats = Vec::new();
+    let mut blob_oids_to_check: Vec<(usize, Oid)> = Vec::new();
 
     // Step 1: Collect file paths and binary flags
     diff.foreach(
         &mut |delta, _progress| {
             let path = delta.new_file().path().unwrap_or(std::path::Path::new(""));
             let path_str = normalize_unicode(path.to_str().unwrap_or(""));
+            let git2_binary = delta.new_file().is_binary();
             stats.push(DiffStat {
-                file_path: path_str,
+                file_path: path_str.clone(),
                 additions: 0,
                 deletions: 0,
-                is_binary: delta.new_file().is_binary(),
+                is_binary: is_truly_binary(&path_str, git2_binary),
             });
+            // For unknown extensions flagged binary, queue for content check
+            if git2_binary && !is_image_file(&path_str) && !is_known_text_extension(&path_str) {
+                blob_oids_to_check.push((stats.len() - 1, delta.new_file().id()));
+            }
             true
         },
         None,
@@ -481,6 +520,15 @@ pub async fn get_diff_stats(repo_path: String, staged: bool) -> Result<Vec<DiffS
         None,
     )
     .map_err(|e| format!("Diff 순회 실패: {}", e))?;
+
+    // Post-check: verify binary flag with actual content for unknown extensions
+    for (idx, oid) in &blob_oids_to_check {
+        if !oid.is_zero() {
+            if let Ok(blob) = repo.find_blob(*oid) {
+                stats[*idx].is_binary = content_looks_binary(blob.content());
+            }
+        }
+    }
 
     // Step 2: Count per-file additions and deletions
     if !stats.is_empty() {
@@ -519,6 +567,62 @@ pub async fn get_diff_stats(repo_path: String, staged: bool) -> Result<Vec<DiffS
 const IMAGE_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico", "tiff", "tif",
 ];
+
+/// Known text file extensions – these should never be treated as binary.
+const TEXT_EXTENSIONS: &[&str] = &[
+    // Config
+    "cfg", "conf", "config", "ini", "toml", "yaml", "yml", "properties", "env",
+    // Data / markup
+    "json", "xml", "html", "htm", "css", "csv", "tsv", "md", "txt", "log", "rst",
+    // Scripts
+    "sh", "bash", "bat", "cmd", "ps1", "sql",
+    // Programming
+    "js", "jsx", "ts", "tsx", "rs", "py", "c", "h", "cpp", "hpp", "cc", "cxx",
+    "java", "go", "rb", "php", "swift", "kt", "scala", "cs", "vb", "lua", "r",
+    // CTC project specific
+    "dat", "tbl", "io", "con", "alarm", "rc",
+    // Misc
+    "gitignore", "gitattributes", "editorconfig", "eslintrc", "prettierrc",
+    "dockerignore", "makefile", "cmake",
+];
+
+/// Check if a file extension is a known text type.
+fn is_known_text_extension(path: &str) -> bool {
+    let path_lower = path.to_lowercase();
+    let filename = Path::new(&path_lower)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("");
+    if matches!(filename, "makefile" | "dockerfile" | "readme" | "license" | "changelog") {
+        return true;
+    }
+    if let Some(ext) = Path::new(&path_lower).extension().and_then(|e| e.to_str()) {
+        TEXT_EXTENSIONS.iter().any(|t| *t == ext)
+    } else {
+        false
+    }
+}
+
+/// Check if raw content looks binary by scanning for NUL bytes (same heuristic as Git).
+/// Scans up to the first 8000 bytes.
+fn content_looks_binary(data: &[u8]) -> bool {
+    let check_len = data.len().min(8000);
+    data[..check_len].contains(&0)
+}
+
+/// Override git2's binary detection. Returns true only for genuinely binary files.
+/// Priority: image extension → binary, known text extension → text,
+/// then content-based NUL scan for unknown extensions.
+fn is_truly_binary(path: &str, git2_says_binary: bool) -> bool {
+    if is_image_file(path) {
+        return true;
+    }
+    if is_known_text_extension(path) {
+        return false;
+    }
+    git2_says_binary
+}
+
 
 fn is_image_file(path: &str) -> bool {
     let path_lower = path.to_lowercase();
